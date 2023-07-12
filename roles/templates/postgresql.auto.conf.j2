@@ -1,0 +1,82 @@
+# CUSTOM
+logging_collector = 'on'
+log_directory = '{{ PG_LOG_DIR }}'
+log_filename = 'postgresql-%a.log'
+full_page_writes = 'on'
+wal_level = 'replica'
+hot_standby = 'on'
+listen_addresses = '*'
+max_connections = '{{ MAX_CONNECTION }}'
+superuser_reserved_connections = '10'
+{% if POSTGRES_VERSION|int >= 13 %}
+wal_keep_size = '30'
+{% else %}
+wal_keep_segments = '30'
+{% endif %}
+port = '{{ POSTGRES_PORT }}'
+{% if PG_CUSTOM_OPT == true %}
+checkpoint_completion_target = '0.9'
+default_statistics_target = '100'
+min_wal_size = '2GB'
+max_wal_size = '4GB'
+max_connections = '100'
+wal_buffers = '16MB'
+work_mem = '16MB'
+max_wal_senders = '10'
+max_replication_slots = '10'
+join_collapse_limit = '20'
+{% set shared_buffers_value = 0 %}
+{% set shared_buffers_value = (ansible_memtotal_mb/4)|round|int %}
+shared_buffers = '{{ shared_buffers_value }}MB'
+{% set effective_cache_size_value = 0 %}
+{% set effective_cache_size_value = ((ansible_memtotal_mb-shared_buffers_value)*0.9)|round|int %}
+effective_cache_size= '{{ effective_cache_size_value }}MB'
+{% set maintenance_work_mem_value = 0 %}
+{% set maintenance_work_mem_value = (ansible_memtotal_mb/16)|round|int %}
+maintenance_work_mem = '{{ maintenance_work_mem_value }}MB'
+{%  if ansible_devices.sdb.rotational == 0 %}
+effective_io_concurrency = '100'
+{%  else %}
+effective_io_concurrency = '2'
+{%  endif %}
+{% endif %}
+{% if PG_AUDIT == true%}
+shared_preload_libraries = 'pg_stat_statements'
+{% endif %}
+{% if  PG_AUDIT == true and (POSTGRES_VENDOR == "postgresql"  or ( POSTGRES_VENDOR == "postgrespro" and POSTGRES_VERSION|int >= 13 )) %}
+# Ansible role PG_PROAUDIT
+{%  if POSTGRES_VENDOR == "postgrespro" %}
+shared_preload_libraries = 'pg_stat_statements,pg_proaudit'
+{%  else %}
+shared_preload_libraries = 'pg_stat_statements,pgaudit'
+{%  endif %}
+event_source = 'PostgreSQL'
+log_destination = 'syslog,stderr'
+syslog_facility = 'LOCAL0'
+syslog_ident = 'Postgres'
+syslog_sequence_numbers = on
+syslog_split_messages = off
+client_min_messages = log
+log_connections = on
+log_disconnections = on
+log_hostname = off
+{%  if POSTGRES_VENDOR == "postgrespro" %}
+pgaudit.log = 'ROLE, DDL, MISC, FUNCTION'
+{%  endif %}
+{% endif %}
+{% if PG_PROFILE == true %}
+# Ansible role PG_PROFILE
+pg_stat_statements.max = '2000'
+pg_stat_statements.track = 'top'
+pg_stat_statements.save = 'off'
+track_activities = 'on'
+track_counts = 'on'
+track_io_timing = 'on'
+track_functions = 'all'
+track_activity_query_size = '2048'
+{% endif %}
+{% if PG_BACKUP == true and POSTGRES_VENDOR == "postgrespro" %}
+# Ansible role PG_PROBACKUP
+archive_mode = 'always'
+archive_command = '/opt/pgpro/ent-{{ POSTGRES_VERSION }}/bin/pg_probackup archive-push -B "{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup" --instance `hostname` --wal-file-name=%f --compress-algorithm=zlib --compress-level=9'
+{% endif %}

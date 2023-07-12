@@ -1,0 +1,33 @@
+---
+- name: Change File
+  lineinfile:
+    path: /etc/sysctl.conf
+    line: "{{item}}"
+    state: present
+  with_items:
+    - "vm.overcommit_ratio = 100"
+    - "vm.overcommit_memory = 0"
+ 
+- name: Reload sysctl.conf
+  shell: "sysctl -p"
+  
+- name: Change /etc/hosts
+  template:
+    src: "hosts.j2"
+    dest: "/etc/hosts"
+    backup: "true"
+
+- name: Create directory
+  file: 
+    path: "{{ item }}"
+    state: directory
+  with_items: 
+    - "{{ PG_LOG_DIR }}"
+    - "{{ DBMS_ROOT_DIRECTORY }}"
+  when: (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+
+- name: Create directory backup
+  file: 
+    path: "{{ DBMS_BACKUP_DIRECTORY }}"
+    state: directory
+  when: ( PG_BACKUP|bool == true and ('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))

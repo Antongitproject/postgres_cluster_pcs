@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Cоздание снимка pg_profile
+LOG_FILE_DIR={{ PG_LOG_DIR }}
+LOG_FILE_NAME=postgresql-`date +%a`.log
+
+# Анализ на запущенный экземпляр СУБД
+
+if psql -lq -p {{ POSTGRES_PORT }}  > /dev/null 2>&1; then
+   echo "";
+else
+   exit;    
+fi
+
+# Анализ на роль СУБД <master/slave>
+
+role_database=`psql -At -p {{ POSTGRES_PORT }} -c 'show transaction_read_only'`
+if [ $role_database == on ] 
+then
+        exit;
+fi
+
+#Выполнение snapshot
+
+for ((i=0;i < 10; i++))
+do
+        status_exicute_profile=`psql -p {{ POSTGRES_PORT }} -c "SELECT profile.take_sample()" | grep -c "OK"`
+
+        if [ $status_exicute_profile -eq 1 ]
+        then 
+                break;
+        else
+                echo "Не удалось создать снепшот pg_profile `date +"%m-%d-%Y %T"`" >> ${LOG_FILE_DIR}${LOG_FILE_NAME}
+        fi
+sleep 30
+done

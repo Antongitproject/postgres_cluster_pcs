@@ -1,0 +1,308 @@
+#!/bin/bash
+###########################################################################
+
+############################################################################
+#Блок переменных############################################################
+############################################################################
+#Путь размещения скрипта
+SCRIPT_FILE={{ postgres_home_dir }}/backupPG.sh
+# Путь размещения СУБД
+dataDIR={{ DBMS_ROOT_DIRECTORY }}/{{DATA_DIR_NAME}}
+# Версия PostgreSQL
+PG_VERSION=`cat $dataDIR/PG_VERSION`
+#Необходимое количество дней для хранения бекапа (количество доступных копий)
+copies=2
+# Путь размещения бекапов
+backupDIR={{ DBMS_BACKUP_DIRECTORY }}
+#дата начала бекапа
+date_start=`date +%Y-%m-%d_%H-%M`
+# Путь размещения бекапов postgres
+backupPath=$backupDIR/pgbackup_$(date +%Y-%m-%d_%H-%M)
+# Путь к файлу с логами
+log_name={{ PG_LOG_DIR }}/postgresql-`date +%Y-%m-%d`.log;
+# Mount point LV
+lv_name={% if DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined %}{{DBMS_ROOT_DIRECTORY}}{% else %}{{ DBMS_BACKUP_DIRECTORY }}{% endif %}    
+# Архивация транзакционных логов выставить значение "on|off|auto", где auto будет выполнять бекап, согласно выставленным параметрам СУБД
+# default:arch_mod=auto
+arch_mod=auto
+# Допустиммые значения "in_days" Политика удержания в днях.
+retention_policy=in_days
+# Доступные роли узлов для выполнения бекапа "all|f - (master)|t - (slave)" 
+role_back=all
+# Включение/выключение аутонтификации 
+auth_back=off
+# Включение режима архивирования резервной копии "on|off"
+archive_fc=on
+# IP Адресс вирутального узла, в случае 1 узловой конфигурации IP адресс мастер узла
+vip_ip_addr={{ VIRTUAL_IP }}
+
+############################################################################
+#Параметры подключения к СУБД###############################################
+############################################################################
+
+# Настройки подключения к Postgres
+db_user=replica
+#default: db_password="pass"
+db_host=`hostname`
+# Порт
+db_port=5432
+#default: db_host=`hostname`
+db_name=postgres
+#default: db_name=postgres
+timeout=5
+
+############################################################################
+#Переменные для расчета свободного места####################################
+############################################################################
+compression_ratio=1
+
+size_db_data=`du -smx $dataDIR | awk '{printf $1}'`;
+free_lv_backups=`df -m | grep "$lv_name$" | awk '{print $4}'`;
+size_db_up=` echo "${size_db_data}*0.20+${size_db_data}" | bc -l`;
+size_db_up=`printf "%.0f\n" $size_db_up`;
+let size_back_new=$size_db_up/$compression_ratio
+
+############################################################################
+#Параметры не требующие изменения###########################################
+############################################################################
+
+atr_performance=0
+
+############################################################################
+#Алгоритм выполнения бекапа#################################################
+############################################################################
+
+function fc_back {
+if [ "$PG_VERSION" == "9.5" ] || [ "$PG_VERSION" == "9.6" ] || [ "$archive_fc" == "off" ]; then
+    if [ "$auth_back" == "on" ]; then
+            if pg_basebackup -h ${db_host} -P ${db_port} -U ${db_user} --password ${db_password}  -D $backupPath -Xs; then
+            size_back_db=`du -smx $backupPath | awk '{print $1}'`
+            status_monitor_ok
+        else
+            status_monitor_error
+        fi
+    else
+            if pg_basebackup -D $backupPath -Xs; then
+            size_back_db=`du -smx $backupPath | awk '{print $1}'`
+            status_monitor_ok
+        else
+            status_monitor_error
+        fi
+    fi
+else
+    if [ "$auth_back" == "on" ]; then
+        if pg_basebackup -h ${db_host} -P ${db_port} -U ${db_user} --password ${db_password}  -D $backupPath -Ft -z -Xs; then
+            size_back_db=`du -smx $backupPath | awk '{print $1}'`
+            status_monitor_ok
+        else
+            status_monitor_error
+        fi
+    else
+        if pg_basebackup -D $backupPath -Ft -z -Xs; then
+            size_back_db=`du -smx $backupPath | awk '{print $1}'`
+            status_monitor_ok
+        else
+            status_monitor_error
+        fi
+    fi
+fi
+}
+
+############################################################################
+#Алгоритм проверки роли сервера               ##############################
+############################################################################
+
+function get_role {
+role_db=`psql -At -c 'SELECT pg_is_in_recovery()'`
+
+if [ "${role_back}" == "all" ] || [ "${role_back}" == "${role_db}" ]; then
+	if fc_back; then
+	    old_back_size=`du -smx $backupPath | awk '{print $1}'`
+        let coefficient=${size_db_data}/${old_back_size}
+         if [ $coefficient -ge 1 ]; then
+        sed -i 's/^compression_ratio=.*/compression_ratio='${coefficient}'/g' ${SCRIPT_FILE}
+        else
+        sed -i 's/^compression_ratio=.*/compression_ratio='1'/g' ${SCRIPT_FILE}
+        fi
+    fi
+else
+    exit
+fi
+}
+
+############################################################################
+#Функция создания бекапа####################################################
+############################################################################
+
+function backup_job
+{
+ if  get_role 2>>$log_name; then
+        if [ "${arch_mod}" == "auto" ]; then
+                arch_mod_status=`psql -U postgres  -c "show archive_mode" | grep -e on -e off -e always`
+                echo $arch_mod_status
+                if [ $arch_mod_status == "on" ] || [ $arch_mod_status == "always" ]; then
+                    tarxlogcreate;
+                fi
+        else
+                if [ "${arch_mod}" == "on"]; then
+                    tarxlogcreate;
+                fi
+        fi
+        sleep 5
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  create backup was completed successfully" >> $log_name
+        echo "$backupPath success" >  $backupPath/backup_status
+        atr_performance=1
+    else
+        sleep 5
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >ERROR:  create backup failed" >> $log_name
+        echo "$backupPath error" >  $backupPath/backup_status
+        echo "< $(date '+%Y-%m-%d %H:%M:%S.%3N %Z') >ERROR:  no space left on device for creating backup" >> $log_name
+        atr_performance=0
+    fi
+}
+
+############################################################################
+#Функция бекапа транзакционных логов########################################
+############################################################################
+
+function tarxlogcreate  {
+a=`ls -la $backupDIR/archive_xlog | wc | awk '{print $1}'` #проверка количества файлов в директории
+b=$a
+
+if psql -U postgres -c "select pg_switch_wal()"; then
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  switch_xlog was completed successfully" >> $log_name
+    while [ $a -ge $b ]; do
+    sleep 5         #Проверка xlog
+    psql -U postgres -c "select pg_switch_wal()"
+    done
+    cd $backupDIR
+    a=`date '+%d.%m.%Y' --date="(date) -1 day"`
+    b=`date '+%d.%m.%Y_%H.%M'`
+    arch_dir_size=`du -shx $backupDIR/archive_xlog | awk '{print $1}'`
+    if      tar --remove-files -cvf pgbackup_xlogarch_$a-$b.tar archive_xlog/*; then
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  archive was completed successfully" >> $log_name
+        size_wal_tar=`du -shx $backupDIR/pg_xlogarch* | awk '{print $1}'`
+        echo $size_wal_tar
+        status_monitor_ok_wal
+    else
+        status_monitor_error_wal
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >WARN:  archive don't was completed successfully" >> $log_name
+    fi
+else
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >WARN:  switch_xlog don't was completed successfully" >> $log_name
+fi
+}
+
+############################################################################
+#Чистка старых резервных копий по количеству дней############################
+############################################################################
+
+function retention_policy_days
+{
+if rm -rf `find $backupDIR/archive/pgbackup* -maxdepth 0 -mtime +$copies`
+    then
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  deleting old backups was completed successfully" >> $log_name
+    else
+        echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >WARN:  delete old backups was completed failed" >> $log_name
+fi
+}
+
+############################################################################
+#Блок системной таблицы мониторинга резервных копий#########################
+############################################################################
+
+function status_monitor_insert {
+psql -h $vip_ip_addr -U postgres -d postgres -c "insert into public.pg_backup_monitoring (node, date_time,  size_data, size_backup, status_back)values ('${db_host}','${date_start}','${size_db_data}MB','${size_back_db}MB','OK'); "
+}
+
+function status_monitor_update {
+echo $size_data_back
+psql -h $vip_ip_addr -U postgres -d postgres -c "update pg_backup_monitoring SET date_time = '${date_start}', size_data = '${size_db_data}MB', size_backup = '${size_back_db}MB', status_back = 'OK' where node = '${db_host}';"
+}
+
+function status_monitor_error {
+psql -h $vip_ip_addr -U postgres -d postgres -c "insert into public.pg_backup_monitoring (node, date_time,  size_data, size_backup, status_back)values ('${db_host}','${date_start}','ERROR','ERROR','ERROR'); "
+}
+
+function status_monitor_update_error {
+psql -h $vip_ip_addr -U postgres -d postgres -c "update pg_backup_monitoring SET date_time = 'ERROR', size_data = 'ERROR', size_backup = 'ERROR', status_back = 'ERROR' where node = '${db_host}';"
+}
+
+function status_monitor_insert_wal {
+psql -h $vip_ip_addr -U postgres -d postgres -c "insert into public.pg_backup_monitoring (node, date_time,  size_data, size_backup, status_back)values ('${db_host}_wal','${date_start}','${arch_dir_size}','${size_wal_tar}','OK'); "
+}
+
+function status_monitor_update_wal {
+psql -h $vip_ip_addr -U postgres -d postgres -c "update pg_backup_monitoring SET date_time = '${date_start}', size_data = '${arch_dir_size}', size_backup = '${size_wal_tar}', status_back = 'OK' where node = '${db_host}_wal';"
+}
+
+function status_monitor_insert_error_wal {
+psql -h $vip_ip_addr -U postgres -d postgres -c "insert into public.pg_backup_monitoring (node, date_time,  size_data, size_backup, status_back)values ('${db_host}_wal','${date_start}','ERROR','ERROR','ERROR'); "
+}
+
+function status_monitor_update_error_wal {
+psql -h $vip_ip_addr -U postgres -d postgres -c "update pg_backup_monitoring SET date_time = 'ERROR', size_data = '$ERROR', size_backup = 'ERROR', status_back = 'ERROR' where node = '${db_host}_wal';"
+}
+
+function status_monitor_ok {
+count_node_back=$(psql -tAc "select count(*) from pg_backup_monitoring where node = '${db_host}';")
+
+if [ $count_node_back -eq 0 ]; then
+status_monitor_insert
+else
+status_monitor_update
+fi
+}
+
+function status_monitor_ok_wal {
+count_node_back=$(psql -tAc "select count(*) from pg_backup_monitoring where node = '${db_host}_wal';")
+
+if [ $count_node_back -eq 0 ]; then
+status_monitor_insert_wal
+else
+status_monitor_update_wal
+fi
+}
+
+function status_monitor_error {
+count_node_back=$(psql -tAc "select count(*) from pg_backup_monitoring where node = '${db_host}';")
+
+if [ $count_node_back -eq 0 ]; then
+status_monitor_insert_error
+else
+status_monitor_update_error
+fi
+}
+
+function status_monitor_error_wal {
+count_node_back=$(psql -tAc "select count(*) from pg_backup_monitoring where node = '${db_host}_wal';")
+
+if [ $count_node_back -eq 0 ]; then
+status_monitor_insert_error_wal
+else
+status_monitor_update_error_wal
+fi
+}
+
+############################################################################
+#Основное тело скрипта######################################################
+############################################################################
+
+if mv $backupDIR/pg* $backupDIR/archive/
+    then
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  moving backups to the archive was completed successfully" >> $log_name
+else
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >WARN:  moving backups to the archive is not possible" >> $log_name
+fi
+if [ $free_lv_backups -gt $size_back_new ];  then
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >INFO:  the space on the device is sufficient to create a backup" >> $log_name
+    backup_job 
+    if [ $atr_performance -eq 1 ]; then
+        if [ "$retention_policy" == "in_days" ]; then
+            retention_policy_days;
+        fi
+    fi
+else
+    status_monitor_error
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >ERROR:  no space left on device for creating backup" >> $log_name
+fi

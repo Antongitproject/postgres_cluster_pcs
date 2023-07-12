@@ -1,0 +1,185 @@
+---
+# Role install and settings postgres (start)
+
+- block: 
+
+  - name: Install Postgres
+    yum:
+      name:
+        - "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}"
+        - "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}-contrib"
+        - "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}-libs"
+        - "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}-server"
+      state: present
+  
+  - name: getent
+    become: yes
+    getent:
+      database: passwd
+      key: "postgres"
+      split: ":"
+    register: postgres_facts
+
+  - name: Set fact home dir postgres
+    set_fact:
+      postgres_home_dir: "{{ postgres_facts.ansible_facts.getent_passwd.postgres[4] }}"
+
+  - name: Install PG_audit
+    yum: 
+      name: "pgaudit{{ PG_AUDIT_VERSION }}_{{ POSTGRES_VERSION }}"
+      state: present
+    when:  ( ansible_os_family == "RedHat" ) and ( PG_AUDIT|bool == true ) and ( POSTGRES_VENDOR == "postgresql" ) 
+  
+  - name: Install PG_audit
+    yum: 
+      name: "pgaudit-pgsql{{ POSTGRES_VERSION }}"
+      state: present
+    when:  ( ansible_os_family == "REDOS" or ansible_os_family == "RED" ) and ( PG_AUDIT|bool == true ) and ( POSTGRES_VENDOR == "postgresql" ) 
+  
+  - name: Change owner postgres directory
+    file: 
+      path: "{{ item }}"
+      state: directory
+      owner: postgres
+      group: postgres
+    with_items: 
+      - "{{ PG_LOG_DIR }}"
+      - "{{ DBMS_ROOT_DIRECTORY }}"
+ 
+  - name: Change owner postgres directory backups
+    file: 
+      path: "{{ DBMS_BACKUP_DIRECTORY }}"
+      state: directory
+      owner: postgres
+      group: postgres
+    when: ( PG_BACKUP|bool == true )
+  
+  - name: Stop PG
+    systemd:
+      name: "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}"
+      state: stopped
+      enabled: no
+    when: ( POSTGRES_VENDOR == "postgrespro" ) 
+  
+  - name: Check PGDATA
+    stat:
+      path: "{{ PGDATA_PATH }}"
+    register: postgres_data
+  
+  - name: Change File postgrespro.service
+    lineinfile:
+      path: /etc/default/{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}
+      line: "PGDATA={{ PGDATA_PATH }}"
+      state: present
+    when: ( POSTGRES_VENDOR == "postgrespro" ) 
+  
+  - name: Change File postgresql.service
+    replace:
+      path: /usr/lib/systemd/system/postgresql-{{POSTGRES_VERSION}}.service
+      regexp: "^Environment=PGDATA=.*$"
+      replace: "Environment=PGDATA={{ PGDATA_PATH }}"
+    when:  ( POSTGRES_VENDOR == "postgresql" ) 
+  
+  - name: Start initialization PostgresPro
+    shell: "{{ POSTGRES_BIN }}/pg-setup initdb"
+  #  no_log: true
+    when: ( POSTGRES_VENDOR == "postgrespro" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Start initialization PostgresSQL
+    shell: "sudo -iu postgres {{ POSTGRES_BIN }}/initdb -k -d {{ PGDATA_PATH }} 2>/dev/null 3>/dev/null"
+    when: ( POSTGRES_VENDOR == "postgresql" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+    
+  - name: Daemon reload
+    systemd:
+      daemon_reload: yes
+    when:  ( POSTGRES_VENDOR == "postgresql" ) 
+  
+  - name: Change pg_hba.conf
+    template:
+      src: "pg_hba.conf.j2"
+      dest: "{{PGDATA_PATH}}/pg_hba.conf"
+      owner: postgres
+      group: postgres
+      mode: '0600'
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Change postgresql.auto.conf
+    template:
+      src: "postgresql.auto.conf.j2"
+      dest: "{{ PGDATA_PATH }}/postgresql.auto.conf"
+      owner: postgres
+      group: postgres
+      mode: '0600'
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Create file .pgpass
+    file:
+      path: "{{ postgres_home_dir }}/.pgpass"
+      owner: postgres
+      group: postgres
+      mode: '0600' 
+      state: touch   
+  
+  - name: Touch user in file .pgpass
+    lineinfile:
+      path: "{{ postgres_home_dir }}/.pgpass"
+      line: "localhost:*:*:{{ USER_TECHNICAL }}:{{ hostvars['localhost']['pass_tech_user_db'] }}"
+  #    no_log: true
+  
+  - name: Start PG
+    command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_ctl start -D {{ PGDATA_PATH }}"
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Copy script pg_count_user.sh
+    template:
+      src: "pg_count_user.sh.j2"
+      dest: "{{ postgres_home_dir }}/pg_count_user.sh"
+      owner: postgres
+      group: postgres
+      mode: 0700
+  
+  - name: Install Batchjobs on crontab
+    cron:
+      name: "Job work pg_count_user.sh"
+      minute: "*/1"
+      job: "{{ postgres_home_dir }}/pg_count_user.sh"
+      disabled: "no"
+      user: "postgres"
+    tags:
+     - cronjobs
+ 
+  - name: Add role {{ USER_REPLICA }}, {{ USER_TECHNICAL }}
+  #  no_log: true
+    shell: "{{ item }}"
+    loop:
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE TABLE public.pg_backup_monitoring (node varchar(200) ,date_time varchar(200) ,dop_pole varchar(200), size_data varchar(200) ,size_backup varchar(200) ,status_back varchar(200))"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE USER {{ USER_REPLICA }} PASSWORD '{{ hostvars['localhost']['pass_replica_db'] }}'"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "COMMENT ON ROLE {{ USER_REPLICA }} IS 'Технический пользователь для репликации'"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER USER {{ USER_REPLICA }} REPLICATION"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER USER postgres PASSWORD '{{ hostvars['localhost']['pass_postgres_db'] }}'"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE USER {{ USER_TECHNICAL }} PASSWORD '{{ hostvars['localhost']['pass_tech_user_db'] }}'"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "COMMENT ON ROLE {{ USER_TECHNICAL }} IS 'Технический пользователь'"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE DATABASE {{ USER_TECHNICAL }} OWNER {{ USER_TECHNICAL }}" 
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "GRANT pg_monitor TO {{ USER_TECHNICAL }}"                                                                               
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "GRANT CONNECT ON DATABASE template1 TO {{ USER_TECHNICAL }}"                                             
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "GRANT CONNECT ON DATABASE postgres TO {{ USER_TECHNICAL }}"                                              
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "GRANT USAGE ON SCHEMA pg_catalog TO {{ USER_TECHNICAL }}"    
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "GRANT SELECT ON TABLE pg_backup_monitoring TO {{ USER_TECHNICAL }}"
+      - sudo -iu postgres psql -U {{ USER_TECHNICAL }} -p {{ POSTGRES_PORT }} -c "CREATE TABLE count_days_deley_backups (count_day integer)"   
+      - sudo -iu postgres psql -U {{ USER_TECHNICAL }} -p {{ POSTGRES_PORT }} -c "ALTER TABLE count_days_deley_backups OWNER TO {{ USER_TECHNICAL }}"    
+      - sudo -iu postgres psql -U {{ USER_TECHNICAL }} -p {{ POSTGRES_PORT }} -c "COMMENT ON TABLE count_days_deley_backups IS 'Техническая таблица числа дней между резервными копиями БД. (Должна храниться только одна запись)'"    
+      - sudo -iu postgres psql -d {{ USER_TECHNICAL }} -c "INSERT INTO count_days_deley_backups VALUES ('1')"
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Passwd postgres
+    user: 
+      name: postgres
+      password: "{{ hostvars['localhost']['pass_postgres_os']|password_hash('sha512') }}" 
+    
+  - name: Restart PG
+    command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_ctl restart -D {{ PGDATA_PATH }}"
+    when: ( total_count_servers_group_slave|int == 0 )
+
+  when: (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+
+# Role install and settings postgres (stop)

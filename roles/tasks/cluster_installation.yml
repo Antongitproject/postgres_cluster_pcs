@@ -1,0 +1,247 @@
+---
+# Cluster installation (start)
+- name: Start pg_basebackup slave_servers
+  command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_basebackup -h {{ master_name }} -U replica -p {{ POSTGRES_PORT }} -D {{ PGDATA_PATH }} --checkpoint=fast -Xs"
+  when: ('slave_servers' in groups and groups['slave_servers']) and inventory_hostname in groups['slave_servers']
+
+- name: Set fact connection_method "md5"
+  set_fact:
+    connection_method: "md5"
+
+- name: Change pg_hba.conf
+  template:
+    src: "pg_hba.conf.j2"
+    dest: "{{PGDATA_PATH}}/pg_hba.conf"
+    owner: postgres
+    group: postgres
+    mode: '0600'
+  when: (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+    
+- name: Stop PG
+  command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_ctl stop -D {{ PGDATA_PATH }}"
+  when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+- name: Install pacemaker
+  yum:
+    name: pacemaker-2.0.4-5.el7.x86_64
+    state: present
+  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED" )  
+
+- name: Install pcs, pacemaker, corosync
+  yum:
+    name:
+      - resource-agents
+      - pcs
+    state: present
+
+- name: Update heartbeat resource pgsql
+  copy:
+    src: "files/pgsql-redhat"
+    dest: /usr/lib/ocf/resource.d/heartbeat/pgsql
+    remote_src: no
+    mode: 0755
+  when: ( ansible_os_family == "RedHat" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+
+- name: Update heartbeat resource pgsql
+  copy:
+    src: "files/pgsql-redos"
+    dest: /usr/lib/ocf/resource.d/heartbeat/pgsql
+    remote_src: no
+    mode: 0755
+  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  )
+
+- name: Start pcsd
+  systemd:
+    name: pcsd
+    state: started
+    enabled: yes
+
+- name: Passwd hacluster
+  user: 
+    name: hacluster
+    group: haclient
+    password: "{{ hostvars['localhost']['pass_hacluster']|password_hash('sha512') }}" 
+
+
+- name: Auth cluster pcs
+  command: 
+    cmd: "{{ item }}"
+  loop:
+    - pcs cluster auth -u hacluster -p "{{ hostvars['localhost']['pass_hacluster'] }}" {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
+    - pcs cluster setup --start --name cluster {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
+  when: ( ansible_os_family == "RedHat" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+
+- name: Auth cluster pcs
+  command: 
+    cmd: "{{ item }}"
+  loop:
+    - pcs host auth -u hacluster -p "{{ hostvars['localhost']['pass_hacluster'] }}" {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
+    - pcs cluster setup cluster_ansible_playbook {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
+  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+
+
+- name: Delete content directory /var/lib/pacemaker/cib
+  file:
+    state: absent
+    path: "/var/lib/pacemaker/cib/*"
+    force: yes
+
+- name: Cluster first start
+  command: "pcs cluster start"
+  when: ansible_os_family == "REDOS" or ansible_os_family == "RED"
+
+- name: Change File
+  lineinfile:
+    path: /etc/corosync/corosync.conf
+    line: "    token: {{ TIMEOUT_COROSYNC }}"
+    insertafter: "totem {$"
+    state: present
+
+- name: Cluster stop on slave_servers and quorum
+  command: "pcs cluster stop --force"
+  when: (('quorum_servers' in groups and groups['quorum_servers']) and (inventory_hostname in groups['quorum_servers'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+
+- block:
+
+  - name: Configure cluster
+    shell: "{{ item }}"
+    loop:
+      - "pcs property set no-quorum-policy=ignore"
+      - "pcs property set stonith-enabled=false"
+      - "pcs resource defaults resource-stickiness=1000"
+      - "pcs resource defaults migration-threshold=3"
+  
+  - name: Add cluster resource vip-master
+    shell: |
+      pcs  resource create vip-master IPaddr2 \
+         ip="{{ VIRTUAL_IP }}"\
+         nic="{{ ansible_default_ipv4.alias }}"\
+         cidr_netmask="{{ mask_cidr }}"\
+         op start   timeout="{{ TIME_OUT }}" interval="0s"  on-fail="restart"\
+         op monitor timeout="{{ TIME_OUT }}" interval="10s" on-fail="restart"\
+         op stop    timeout="{{ TIME_OUT }}" interval="0s"  on-fail="block"
+  
+  - name: Add cluster resource pgsql
+    #no_log: true
+    shell: |		 
+        pcs resource create pgsql pgsql \
+          pgctl="{{ POSTGRES_BIN }}/pg_ctl"\
+          psql="{{ POSTGRES_BIN }}/psql"\
+          pgdata="{{ PGDATA_PATH }}"\
+          pgport="{{ POSTGRES_PORT }}"\
+          rep_mode="sync"\
+          node_list="{{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }}"\
+          primary_conninfo_opt="keepalives_idle=60 keepalives_interval=5 keepalives_count=5 password={{ hostvars['localhost']['pass_replica_db'] }}"\
+          repuser={{ USER_REPLICA }} replication_slot_name=standby_slot2 \
+          master_ip="{{ VIRTUAL_IP }}"\
+          op start   timeout="{{ TIME_OUT }}" interval="0s"  on-fail="restart"\
+          op monitor timeout="{{ TIME_OUT }}" interval="4s"  on-fail="restart"\
+          op monitor timeout="{{ TIME_OUT }}" interval="3s"  on-fail="restart" role="Master"\
+          op promote timeout="{{ TIME_OUT }}" interval="0s"  on-fail="restart"\
+          op demote  timeout="{{ TIME_OUT }}" interval="0s"  on-fail="stop"\
+          op stop    timeout="{{ TIME_OUT }}" interval="0s"  on-fail="block"\
+          op notify  timeout="{{ TIME_OUT }}" interval="0s"
+  
+  - name: Add cluster resource msPostgresql
+    shell: "{{ item }}"
+    loop:
+        - "pcs  resource master msPostgresql pgsql master-max=1 master-node-max=1 clone-max={{ clone_node_max }} clone-node-max={{ clone_node_max }} notify=true"
+        - "pcs  resource group add master-group vip-master"
+        - "pcs  constraint colocation add master-group with Master msPostgresql INFINITY"
+        - "pcs  constraint order promote msPostgresql then start master-group symmetrical=false score=INFINITY"
+        - "pcs  constraint order demote  msPostgresql then stop  master-group symmetrical=false score=0"
+    when: ( ansible_os_family == "RedHat" )
+  
+  - name: Add cluster resource msPostgresql
+    shell: "{{ item }}"
+    loop:
+        - pcs  resource promotable pgsql promoted-max=1 promoted-node-max=1 clone-max={{ clone_node_max }} clone-node-max={{ clone_node_max }} notify=true
+        - pcs  resource group add master-group vip-master
+        - pcs  constraint colocation add master-group with Master pgsql-clone
+        - pcs  constraint order promote pgsql-clone then start master-group symmetrical=false score=INFINITY
+        - pcs  constraint order demote pgsql-clone then stop master-group symmetrical=false score=0
+    when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  )
+  
+  - name: Cluster stop on master_server
+    command: "pcs cluster stop --force"
+  
+  - name: Cluster start on master_server
+    command: "pcs cluster start"
+  
+  - name: Wait status master PRI "delay 10 secconds"
+    shell: "crm_mon -A1 | grep pgsql-status | grep PRI | awk '{print $4}'"
+    register: result
+    until: '"PRI" in result.stdout_lines'
+    retries: 10
+    delay: 10
+  
+  - name: pause for 5 second(s)
+    pause:
+      seconds: "5"  
+  
+  - name: Cluster stop on master_server
+    command: "pcs cluster stop --force"
+  
+  - name: Cluster start on master_server
+    command: "pcs cluster start"
+  
+  - name: Wait status master PRI "delay 10 secconds"
+    shell: "crm_mon -A1 | grep pgsql-status | grep PRI | awk '{print $4}'"
+    register: result
+    until: '"PRI" in result.stdout_lines'
+    retries: 10
+    delay: 10
+
+  when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+
+- name: Cluster start on slave_servers
+  command: "pcs cluster start"
+  async: 0
+  poll: 0
+  throttle: 15
+  when: ('slave_servers' in groups and groups['slave_servers']) and inventory_hostname in groups['slave_servers']
+
+- name: Wait status master SYNC "delay 10 secconds"
+  shell: "crm_mon -A1 | grep pgsql-data-status | grep 'STREAMING|SYNC' | awk '{print $4}'"
+  register: result
+  until: '"STREAMING|SYNC" in result.stdout_lines'
+  retries: 10
+  delay: 10
+  when: ( total_count_servers_group_slave|int >= 2) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+
+- name: Cluster start on quorum_servers
+  command: "pcs cluster start"
+  async: 0
+  poll: 0
+  throttle: 15
+  when: ('quorum_servers' in groups and groups['quorum_servers']) and inventory_hostname in groups['quorum_servers']
+
+- name: pause for 5 second(s)
+  pause:
+    seconds: "5"
+
+- name: Add colocation resource pgsql on quorum_servers
+  shell: "pcs constraint location msPostgresql avoids {{ ansible_hostname }}=INFINITY"
+  when: ( ansible_os_family == "RedHat" ) and ('quorum_servers' in groups and groups['quorum_servers']) and inventory_hostname in groups['quorum_servers']
+
+- name: Add colocation resource pgsql on quorum_servers
+  shell: "pcs constraint location pgsql-clone avoids {{ ansible_hostname }}=INFINITY"
+  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  ) and ('quorum_servers' in groups and groups['quorum_servers']) and inventory_hostname in groups['quorum_servers']
+
+- name: Configure cluster
+  shell: "pcs property unset no-quorum-policy"
+  when: ( total_count_servers_group_slave|int >= 2) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+
+- name: Pcs cleanup cluster
+  command: pcs resource cleanup
+  async: 5
+  poll: 1
+  retries: 3
+  delay: 1
+  until: command_result.finished
+  failed_when: false
+  ignore_errors: true
+  when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+
+
+# Cluster installation (stop)

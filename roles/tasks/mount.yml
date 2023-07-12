@@ -1,0 +1,78 @@
+---
+- block:
+
+  - name: Create PV PGDATA
+    parted:
+      device: "{{ DISK_DEVICE_DBMS }}"
+      number: 1
+      flags: [ lvm ]
+      state: present
+      part_end: "{{ SIZE_DBMS_IN_PROCENT }}%"
+    when: ( DISK_DEVICE_DBMS != '' )
+  
+  - name: Create VG PGDATA
+    lvg:
+      vg: "{{ VG_NAME_DBMS }}"
+      pvs: "{{ DISK_DEVICE_DBMS }}1"
+    when: ( DISK_DEVICE_DBMS != '' )
+
+  - name: Create LV PGDATA
+    lvol:
+      vg: "{{ VG_NAME_DBMS }}"
+      lv: "{{ LV_NAME_DBMS }}"
+      size: "+{{ SIZE_DBMS_IN_PROCENT }}%FREE"
+    when: ( DISK_DEVICE_DBMS != '' )
+
+  - name: Format FS PGDATA
+    filesystem:
+      fstype: ext4
+      dev: "/dev/{{ VG_NAME_DBMS }}/{{ LV_NAME_DBMS }}"
+    when: ( DISK_DEVICE_DBMS != '' )
+
+  - name: Create FS PGDATA
+    mount:
+      path: "{{ DBMS_ROOT_DIRECTORY }}"
+      src: "/dev/mapper/{{ VG_NAME_DBMS }}-{{ LV_NAME_DBMS }}"
+      fstype: ext4
+      state: mounted
+    when: ( DISK_DEVICE_DBMS != '' )
+    
+  - name: Create PV BACKUP
+    parted:
+      device: "{{ DISK_DEVICE_BACKUP }}"
+      number: 1
+      flags: [ lvm ]
+      state: present
+      part_end: "{{ SIZE_BACKUP_IN_PROCENT }}%"
+    when:  ( PG_BACKUP|bool == true and DISK_DEVICE_BACKUP != '' )
+
+  - name: Create VG BACKUP
+    lvg:
+      vg: "{{ VG_NAME_BACKUP }}"
+      pvs: "{{ DISK_DEVICE_BACKUP }}1"
+    when:  ( PG_BACKUP|bool == true and DISK_DEVICE_BACKUP != '' )
+
+  - name: Create LV BACKUP
+    lvol:
+      vg: "{{ VG_NAME_BACKUP }}"
+      lv: "{{ LV_NAME_BACKUP }}"
+      size: "+{{ SIZE_BACKUP_IN_PROCENT }}%FREE"
+    when:  ( PG_BACKUP|bool == true and DISK_DEVICE_BACKUP != '' )
+
+  - name: Format FS BACKUP
+    filesystem:
+      fstype: ext4
+      dev: "/dev/{{ VG_NAME_BACKUP }}/{{ LV_NAME_BACKUP }}"
+    when:  ( PG_BACKUP|bool == true and DISK_DEVICE_BACKUP != '' )
+
+  - name: Create FS BACKUP
+    mount:
+      path: "{{ DBMS_BACKUP_DIRECTORY }}"
+      src: "/dev/mapper/{{ VG_NAME_BACKUP }}-{{ LV_NAME_BACKUP }}"
+      fstype: ext4
+      state: mounted
+    when:  ( PG_BACKUP|bool == true and DISK_DEVICE_BACKUP != '' )
+
+  when: (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+
+  

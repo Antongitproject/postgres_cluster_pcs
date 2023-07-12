@@ -1,0 +1,56 @@
+---
+
+- name: Delete PG, pcs, pacemaker, corosync on all hosts
+  hosts: all
+  become: yes
+  vars_files:
+    - roles/asu-service.postgres.installation/defaults/main.yml
+    
+  tasks:
+
+  - name: Destroy cluster
+    shell: "pcs cluster destroy cluster"
+    ignore_errors: True
+
+  - name: Get running processes
+    shell: "ps -ef | grep -v grep | grep -w corosync | awk '{print $2}'"
+    register: running_processes
+
+  - name: Force kill corosync
+    shell: "kill -9 {{ item }}; pcs cluster stop"
+    with_items: "{{ running_processes.stdout_lines }}"
+    ignore_errors: True
+
+
+  - name: Delete pcs, pacemaker, corosync
+    yum:
+      name:
+        - pcs
+        - corosync
+        - pacemaker
+        - postgres*
+      state: absent
+
+  - name: Delete content & directory
+    file:
+      state: absent
+      path: "{{ item }}"
+    loop:
+      - "/var/lib/pacemaker/cib/"
+      - "/etc/corosync/corosync.conf"
+      - "{{ DBMS_ROOT_DIRECTORY }}/{{DATA_DIR_NAME}}/"
+      - "/var/lib/pgsql/"
+      - "{{ PG_LOG_DIR }}"
+      - "{{ DBMS_ROOT_DIRECTORY }}/tmp/PGSQL.lock"
+      - "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
+    when:  DATA_DIR_NAME != '' or DBMS_ROOT_DIRECTORY != '' or PG_LOG_DIR != '' or DATA_DIR_NAME != '/' or DBMS_ROOT_DIRECTORY != '/' or PG_LOG_DIR != '/'
+
+  - name: Force kill hacluster and postgres
+    shell: "pkill -u hacluster; pkill -u postgres"
+    ignore_errors: True
+
+  - name: User delete hacluster
+    user:
+      name: hacluster
+      remove: yes
+      state: absent 

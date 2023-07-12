@@ -1,0 +1,71 @@
+---
+
+- name: Delete PG, pcs, pacemaker, corosync on all hosts
+  hosts: all
+  become: yes
+  vars_files:
+    - roles/asu-service.postgres.installation/defaults/main.yml
+    
+  tasks:
+
+    - name: Umount PGDATA 
+      mount: 
+        path: "{{ DBMS_ROOT_DIRECTORY }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Remove entry from /etc/fstab PGDATA
+      lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: "^/dev/mapper/{{ VG_NAME_DBMS }}-{{ LV_NAME_DBMS }} {{ DBMS_ROOT_DIRECTORY }}"
+
+    - name: Delete LV PGDATA
+      lvol:
+        vg: "{{ VG_NAME_DBMS }}"
+        lv: "{{ LV_NAME_DBMS }}"
+        state: absent
+        force: true
+
+    - name: Delete VG PGDATA
+      lvg:
+        vg: "{{ VG_NAME_DBMS }}"
+        pvs: "{{ DISK_DEVICE_DBMS }}1"
+        state: absent
+
+    - name: Delete PV PGDATA
+      parted:
+        device: "{{ DISK_DEVICE_DBMS }}"
+        number: 1
+        state: absent
+
+    - name: Umount BACKUP
+      mount: 
+        path: "{{ DBMS_BACKUP_DIRECTORY }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Remove entry from /etc/fstab BACKUP
+      lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: "^/dev/mapper/{{ VG_NAME_BACKUP }}-{{ LV_NAME_BACKUP }} {{ DBMS_BACKUP_DIRECTORY }}"
+
+    - name: Delete LV BACKUP
+      lvol:
+        vg: "{{ VG_NAME_BACKUP }}"
+        lv: "{{ LV_NAME_BACKUP }}"
+        state: absent
+        force: true
+
+    - name: Create VG BACKUP
+      lvg:
+        vg: "{{ VG_NAME_BACKUP }}"
+        pvs: "{{ DISK_DEVICE_BACKUP }}1"
+        state: absent
+
+    - name: Create PV BACKUP
+      parted:
+        device: "{{ DISK_DEVICE_BACKUP }}"
+        number: 1
+        state: absent

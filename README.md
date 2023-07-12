@@ -23,11 +23,6 @@ Ansible:  2.9.27
 - Настроить firewalld или iptables     
 
 ## Установка через ansible    
-
-- Установить ansible
-   ```
-   yum install ansible
-   ```
   
 - Заполнить файл inventory.ini    
 **Пример заполнения файла inventory.ini:**
@@ -112,34 +107,37 @@ DATA_DIR_NAME             | string  | data                     | Directory DBMS
 PG_LOG_DIR                | string  | /var/log/pg_log          | Log storage directory                               
 DBMS_ROOT_DIRECTORY       | string  | /pgdata                  | Root directory DBMS                               
 POSTGRES_PORT             | integer | 5432                     | Port DB                               
-MAX_CONNECTION            | integer | 100                      | Superuser_reserved_connections = '10'. Specify the required number of users + 10                               
+MAX_CONNECTION            | integer | 110                      | Superuser_reserved_connections = '10'. Specify the required number of users + 10                               
+USER_TECHNICAL            | string  | user_technical           | Technical user
 SAVE_LIST_PASSWORDS       | bool    | false                    | Save all passwords in the PGDATA directory                               
 PG_CUSTOM_OPT             | bool    | true                     | Optimization of standard DBMS parameters                               
 **Setting cluster**       |         |                          |                          
-VIRTUAL_IP                | string  | -                        | Cluster virtual IP. e.g. 192.168.0.4                               
+USER_REPLICA              | string  | user_replica             | Replication cluster user 
+VIRTUAL_IP                | string  | 192.168.0.5              | Cluster virtual IP. e.g. 192.168.0.4                               
 TIME_OUT                  | integer | 180                      | Timeout resources cluster pacemaker                               
 TIMEOUT_COROSYNC          | integer | 4000                     | Timeout corosync /etc/corosync/corosync.conf                               
 **Setting path DBMS**     |         |                          |                            
 DISK_DEVICE_DBMS          | string  | -                        | If the device is not specified, then the mount will not be performed. e.g. /dev/sdb                              
-SIZE_DBMS_IN_PROCENT      | integer | -                        | Disk size for DBMS_ROOT_DIRECTORY. e.g. 100                              
-VG_NAME_DBMS              | string  | -                        | Name volume group DBMS_ROOT_DIRECTORY. e.g. vg_pgdata                               
-LV_NAME_DBMS              | string  | -                        | Name logical volum DBMS_ROOT_DIRECTORY  e.g. lv_pgdata                                
+SIZE_DBMS_IN_PROCENT      | integer | 100                      | Disk size for DBMS_ROOT_DIRECTORY. e.g. 100                              
+VG_NAME_DBMS              | string  | vg_pgdata                | Name volume group DBMS_ROOT_DIRECTORY. e.g. vg_pgdata                               
+LV_NAME_DBMS              | string  | lv_pgdata                | Name logical volum DBMS_ROOT_DIRECTORY  e.g. lv_pgdata                                
 **Setting BACKUP**        |         |                          |                         
-PG_BACKUP                 | bool    | true                     | Activate backup setting
+PG_BACKUP                 | bool    | false                    | Activate backup setting
+USER_BACKUP               | string  | "backup_user"            | Backup user
 CRON_BACK_HOUR            | string  | 22                       | Start crontab backup at 22:00
 CRON_BACK_MIN             | string  | 00                       | Start crontab backup at 00 minutes
 DBMS_BACKUP_DIRECTORY     | string  | /backups_pg              | Root directory BACKUP                                                              
 DISK_DEVICE_BACKUP        | string  | -                        | If the device is not specified, then the mount will not be performed. e.g. /dev/sdс
-SIZE_BACKUP_IN_PROCENT    | integer | -                        | Disk size for DBMS_BACKUP_DIRECTORY. e.g. 100                                                           
-VG_NAME_BACKUP            | string  | -                        | Name volume group DBMS_BACKUP_DIRECTORY e.g. vg_pgbackup                               
-LV_NAME_BACKUP            | string  | -                        | Name logical volum DBMS_BACKUP_DIRECTORY e.g. lv_pgbackup                               
+SIZE_BACKUP_IN_PROCENT    | integer | 100                      | Disk size for DBMS_BACKUP_DIRECTORY. e.g. 100                                                           
+VG_NAME_BACKUP            | string  | vg_pgbackup              | Name volume group DBMS_BACKUP_DIRECTORY e.g. vg_pgbackup                               
+LV_NAME_BACKUP            | string  | lv_pgbackup              | Name logical volum DBMS_BACKUP_DIRECTORY e.g. lv_pgbackup                               
 **Enable/Disable module** |         |                          |                                
-PG_PROFILE                | bool    | true                     | Activate setup modul pg_profile
+PG_PROFILE                | bool    | false                    | Activate setup modul pg_profile
 CRON_PROFILE_HOUR         | string  | *                        | Start crontab pg_profile every hour
 CRON_PROFILE_MIN          | string  | */20                     | Start crontab pg_profile every 20 minute                             
 NAME_PG_PROFILE           | string  | "pg_profile--4.2.tar.gz" | Location of the archive in the folder with files. https://github.com/zubkov-andrei/pg_profile                                 
 **Enable/Disable module** |         |                          |                                
-PG_AUDIT                  | bool    | true                     | Activate setup modul pgaudit, pg_proaudit                                    
+PG_AUDIT                  | bool    | false                    | Activate setup modul pgaudit, pg_proaudit                                    
 **DELETE INSTALLED POSTGRES**|      |                          |                 
 PG_UNINSTALL              | bool    | false                    | Don't use this option by default true. Delete all.
 

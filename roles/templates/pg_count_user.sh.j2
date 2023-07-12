@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Скрипт ведет статистику подключения пользователей
+
+# Анализ на запущенный экземпляр СУБД
+
+if psql -p {{ POSTGRES_PORT }} -lq  > /dev/null 2>&1; then
+   echo "";
+else
+   exit;
+fi
+
+# Директория лог файла. 
+LOG_FILE_DIR={{ PG_LOG_DIR }}
+
+# Ротация логов. Указывать сколько дней хранить файлы.
+copies=6
+
+# Название лог файла.
+FILE_NAME_LOG=connectToDB
+
+# Определение колличества подключенний к СУБД PostgreSQL.
+count_users=`psql -At -p {{ POSTGRES_PORT }} -c 'select count(*) from pg_stat_activity'`
+
+# Определение текущего времени.
+timestamp_us=`date +"%m-%d-%Y %T"`
+
+# Запись данных в лог файл.
+echo -e "$count_users; $timestamp_us" >> ${LOG_FILE_DIR}${FILE_NAME_LOG}-`date +%m-%d`.log
+
+# Ротация старых логов файлов.
+rm -rf `find ${LOG_FILE_DIR}${FILE_NAME_LOG}* -mtime +$copies`
+

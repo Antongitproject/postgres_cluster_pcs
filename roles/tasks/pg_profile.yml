@@ -1,0 +1,50 @@
+---
+- block:
+
+  - name: Unarchive pg_profile
+    unarchive:
+      src: "{{ NAME_PG_PROFILE }}"
+      dest: "{{ POSTGRES_EXTANTION }}"
+      remote_src: no
+      owner: root
+      group: root
+
+ 
+  - name: Create extention pg_profile
+    shell: "{{ item }}"
+    loop:
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE EXTENSION dblink"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE EXTENSION pg_stat_statements"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE SCHEMA profile"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE EXTENSION pg_profile SCHEMA profile"
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Copy script profile_snapshot.sh.j2
+    template:
+      src: "profile_snapshot.sh.j2"
+      dest: "{{ postgres_home_dir }}/profile_snapshot.sh"
+      owner: postgres
+      group: postgres
+      mode: 0700
+ 
+  - name: Install Batchjobs on crontab
+    cron:
+      name: "Job work pg_profile"
+      minute: "{{ CRON_PROFILE_HOUR }}"
+      hour: "{{ CRON_PROFILE_MIN }}"
+      job: "{{ postgres_home_dir }}/profile_snapshot.sh"
+      disabled: "no"
+      user: "postgres"
+    tags:
+     - cronjobs
+  
+  - name: Create test snapshot pg_profile
+    shell: "sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c 'SELECT profile.take_sample()'"
+    when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  - name: Restart PG
+    command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_ctl restart -D {{ PGDATA_PATH }}"
+    when: ( total_count_servers_group_slave|int == 0 )  
+
+  when: (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+# pg_profile (stop)

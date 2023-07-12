@@ -1,0 +1,164 @@
+- name: Add to master group
+  group_by:
+    key: master_server
+  when:  role_server is defined and role_server == "master" 
+
+- name: Add to slave group
+  group_by:
+    key: slave_servers
+  when: role_server is defined and role_server == "slave"
+
+- name: Add to quorum group
+  group_by:
+    key: quorum_servers
+  when: role_server is defined and role_server == "quorum" 
+
+- name: Work directory DBMS
+  set_fact:
+    PGDATA_PATH: "{{ DBMS_ROOT_DIRECTORY }}/{{ DATA_DIR_NAME }}"
+
+- name: Facts Postgres Pro 
+  set_fact:
+    POSTGRES_PACK_NAME: "postgrespro-ent-"
+    POSTGRES_PATH_DIR: "/opt/pgpro/ent-{{POSTGRES_VERSION}}"
+  when: ( POSTGRES_VENDOR == "postgrespro")
+
+- name: Facts Postgres Pro
+  set_fact:
+    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
+    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
+  when: ( POSTGRES_VENDOR == "postgrespro")
+
+- name: Facts Postgres SQL
+  set_fact:
+    POSTGRES_PACK_NAME: "postgresql"
+    POSTGRES_PATH_DIR: "/usr/pgsql-{{POSTGRES_VERSION}}"
+  when: ( POSTGRES_VENDOR == "postgresql")
+
+- name: Facts Postgres SQL
+  set_fact:
+    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
+    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
+  when: ( POSTGRES_VENDOR == "postgresql")
+
+- name: Facts Postgres SQL
+  set_fact:
+    PG_AUDIT_VERSION: "{{ POSTGRES_VERSION|int + 2 }}"
+  when: ( POSTGRES_VENDOR == "postgresql")
+
+- name: Count the number of hosts in slave_serves
+  set_fact: 
+    slave_servers_count: "{{ groups['slave_servers']| default([])|length  }}" 
+
+- name: Count the number of hosts in quorum_serves
+  set_fact: 
+    quorum_servers_count: "{{ groups['quorum_servers']| default([])| length }}" 
+  
+- name: Sum the count of hosts in slave_serves and quorum_servers
+  set_fact:
+    total_count_servers_group_slave: "{{ slave_servers_count|int + quorum_servers_count|int }}"
+
+- name: Sum the count of hosts in slave_serves and quorum_servers
+  set_fact:
+    clone_node_max: "{{ total_count_servers_group_slave|int + 1 }}"
+
+- name: Set facts name hosts in host_group_slave_servers
+  set_fact:
+    hostnames_slave_servers: "{{ groups['slave_servers'] | map('extract', hostvars, ['inventory_hostname']) | join(' ') }}"
+  when: slave_servers_count|int >= 1
+
+- name: Set fact master_name
+  set_fact:
+    master_name: "{{ groups['master_server'] | map('extract', hostvars, ['ansible_hostname']) | join (' ') }}"
+
+- name: Combine all hostname group slave_servers
+  set_fact:
+    all_hosts_slave_group: "{{ groups['slave_servers'] | map('extract', hostvars, ['ansible_hostname']) | list | join(' ') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+  when: slave_servers_count|int >= 1
+
+- name: Combine all hostname group quorum_servers
+  set_fact:
+    all_hosts_quorum_group: "{{ groups['quorum_servers'] | map('extract', hostvars, ['ansible_hostname']) | list | join(' ') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+  when: quorum_servers_count|int >= 1
+
+- name: Set fact pass_replica_db
+  set_fact:
+    pass_replica_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact pass_postgres_db
+  set_fact:
+    pass_postgres_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact pass_tech_user_db
+  set_fact:
+    pass_tech_user_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact pass_postgres_os
+  set_fact:
+    pass_postgres_os: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits,punctuation length=30') }}"     
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact pass_hacluster
+  set_fact:
+    pass_hacluster: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact pass_pro_backup_db
+  set_fact:
+    pass_pro_backup_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"    
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact ip
+  set_fact:
+    ip: "{{ ansible_default_ipv4.address }}/{{ansible_default_ipv4.netmask }}"    
+
+- name: Set fact mask_cidr
+  set_fact:
+#    mask_cidr: "{{ ip | ansible.util.ipaddr }}"
+    mask_cidr: "{{ ip | ipaddr('prefix') }}"
+
+- name: Set fact connection_method "trust"
+  set_fact:
+    connection_method: "trust"
+  when: ( total_count_servers_group_slave|int  >= 1  )
+
+- name: Set fact connection_method "md5"
+  set_fact:
+    connection_method: "md5"
+  when: ( total_count_servers_group_slave|int == 0 )
+
+- name: Set pg_audit_name
+  set_fact:
+    pg_audit_name: "pg_proaudit"
+  when: ( POSTGRES_VENDOR == "postgrespro")
+
+- name: Set pg_audit_name
+  set_fact:
+    pg_audit_name: "pgaudit"
+  when: ( POSTGRES_VENDOR == "postgresql")
+
+- name: Backup directory path
+  set_fact:
+    DBMS_BACKUP_DIRECTORY: "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
+  when: DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined

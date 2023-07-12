@@ -1,0 +1,48 @@
+---
+
+- block:  
+  - name: Include set_facts
+    include: set_facts_cluster.yml
+  
+  - name: Include change hosts
+    include: change_hosts.yml
+  
+  - name: Include change hosts
+    include: mount.yml
+  
+  - name: Include postgres standalone installation
+    include: install_postgres_standalone.yml
+  
+  - name: Include change pg_profile.yml
+    include: pg_profile.yml
+  
+  - name: Include pgaudit
+    include: pg_audit.yml
+    when:  PG_AUDIT|bool == true and ( POSTGRES_VENDOR == "postgresql"  or ( POSTGRES_VENDOR == "postgrespro" and POSTGRES_VERSION|int >= 13 ))
+  
+  - name: Include cluster installation
+    include: cluster_installation.yml
+    when:  total_count_servers_group_slave|int >= 1 
+  
+  - name: Include pg_probackup installation
+    include: pro_backup.yml
+    when: PG_BACKUP|bool == true and  POSTGRES_VENDOR == "postgrespro" 
+  
+  - name: Include backup installation
+    include: sql_backup.yml
+    when: PG_BACKUP|bool == true and  POSTGRES_VENDOR == "postgresql" 
+  
+  - name: Save list password
+    template:
+      src: "password_list.j2"
+      dest: "{{PGDATA_PATH}}/password_list"
+      owner: postgres
+      group: postgres
+      mode: '0600'
+    when: SAVE_LIST_PASSWORDS|bool == true and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
+  
+  when: PG_UNINSTALL is not defined or PG_UNINSTALL|bool == false
+  
+- name: Include PG uninstall
+  include: delete_pg.yml
+  when: PG_UNINSTALL is defined and PG_UNINSTALL|bool == true
