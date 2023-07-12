@@ -26,7 +26,7 @@ Ansible:  2.9.27
 ## Установка через ansible    
   
 - Заполнить файл inventory.ini    
-**Пример заполнения файла inventory.ini:**
+**Пример:**
    ```
    [master_server]     
    pg2 ansible_ssh_host=192.168.0.2 ansible_user=root ansible_become=yes     
@@ -43,7 +43,7 @@ Ansible:  2.9.27
    # Parameters
    ```
 
-- Заполнить vars в файле inventory.ini 
+- Заполнить /roles/asu-service.postgres.installation/defaults/main.yml
 
 **Набор минимальных параметров для standalone**
 
