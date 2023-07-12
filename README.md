@@ -1,4 +1,4 @@
-# Инсталляция PostgreSQL/Pro в режиме standalone/cluster(pcs+corosync+pacemaker)
+# Установка PostgreSQL/Pro в режиме standalone/cluster(pcs+corosync+pacemaker)
 
 Роль для настройки СУБД PostgreSQL в standalone/cluster(pcs+corosync+pacemaker)     
 
@@ -16,6 +16,7 @@ Ansible:  2.9.27
 Для запуска данного сценария необходимо:    
 
 - Убедится, что есть сетевой доступ с управляющего сервера до управляемых узлов по 22 порту (ssh)    
+- Убедиться, что сетевой интерфейс настроен.
 - В наличии учетной записи с правами администратора из под которой будет производится подключение      
 - Подключить репозитории postgres, os    
 - Настроить ip адреса    
