@@ -129,7 +129,6 @@
           psql="{{ POSTGRES_BIN }}/psql"\
           pgdata="{{ PGDATA_PATH }}"\
           pgport="{{ POSTGRES_PORT }}"\
-          tmpdir="{{ DATA_DIR_NAME }}/tmp"\
           rep_mode="sync"\
           node_list="{{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }}"\
           primary_conninfo_opt="keepalives_idle=60 keepalives_interval=5 keepalives_count=5 password={{ hostvars['localhost']['pass_replica_db'] }}"\
