@@ -1,7 +1,7 @@
 ---
 # Cluster installation (start)
 - name: Start pg_basebackup slave_servers
-  command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_basebackup -h {{ master_name }} -U replica -p {{ POSTGRES_PORT }} -D {{ PGDATA_PATH }} --checkpoint=fast -Xs"
+  command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_basebackup -h {{ master_name }} -U {{ USER_REPLICA}} -p {{ POSTGRES_PORT }} -D {{ PGDATA_PATH }} --checkpoint=fast -Xs"
   when: ('slave_servers' in groups and groups['slave_servers']) and inventory_hostname in groups['slave_servers']
 
 - name: Set fact connection_method "md5"
@@ -129,6 +129,7 @@
           psql="{{ POSTGRES_BIN }}/psql"\
           pgdata="{{ PGDATA_PATH }}"\
           pgport="{{ POSTGRES_PORT }}"\
+          tmpdir="{{ DATA_DIR_NAME }}/tmp"\
           rep_mode="sync"\
           node_list="{{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }}"\
           primary_conninfo_opt="keepalives_idle=60 keepalives_interval=5 keepalives_count=5 password={{ hostvars['localhost']['pass_replica_db'] }}"\

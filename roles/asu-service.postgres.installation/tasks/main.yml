@@ -15,6 +15,7 @@
   
   - name: Include change pg_profile.yml
     include: pg_profile.yml
+    when: PG_PROFILE|bool == true
   
   - name: Include pgaudit
     include: pg_audit.yml
