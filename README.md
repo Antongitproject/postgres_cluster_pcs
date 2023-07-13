@@ -124,7 +124,7 @@ VG_NAME_DBMS              | string  | vg_pgdata                | Name volume gro
 LV_NAME_DBMS              | string  | lv_pgdata                | Name logical volum DBMS_ROOT_DIRECTORY  e.g. lv_pgdata                                
 **Setting BACKUP**        |         |                          |                         
 PG_BACKUP                 | bool    | false                    | Activate backup setting
-USER_BACKUP               | string  | "backup_user"            | Backup user
+USER_BACKUP               | string  | backup_user              | Backup user
 CRON_BACK_HOUR            | string  | 22                       | Start crontab backup at 22:00
 CRON_BACK_MIN             | string  | 00                       | Start crontab backup at 00 minutes
 DBMS_BACKUP_DIRECTORY     | string  | /backups_pg              | Root directory BACKUP                                                              
@@ -136,7 +136,7 @@ LV_NAME_BACKUP            | string  | lv_pgbackup              | Name logical vo
 PG_PROFILE                | bool    | false                    | Activate setup modul pg_profile
 CRON_PROFILE_HOUR         | string  | *                        | Start crontab pg_profile every hour
 CRON_PROFILE_MIN          | string  | */20                     | Start crontab pg_profile every 20 minute                             
-NAME_PG_PROFILE           | string  | "pg_profile--4.2.tar.gz" | Location of the archive in the folder with files. You can download the archive here https://github.com/zubkov-andrei/pg_profile                                 
+NAME_PG_PROFILE           | string  | pg_profile--4.2.tar.gz   | Location of the archive in the folder with files. You can download the archive here https://github.com/zubkov-andrei/pg_profile                                 
 **Enable/Disable module** |         |                          |                                
 PG_AUDIT                  | bool    | false                    | Activate setup modul pgaudit, pg_proaudit                                    
 **DELETE INSTALLED POSTGRES**|      |                          |                 
