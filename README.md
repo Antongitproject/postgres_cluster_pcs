@@ -26,8 +26,17 @@ Ansible:  2.9.27
 - Убедится, что hostname настроены верно    
 - Убедится, что firewalld, nftables или iptables настроен (tcp: 5432, 2224 / udp: 5404, 5405).
 
-## Установка через ansible    
-  
+## Установка через ansible      
+- Добавить коллекции в ansible:
+    ```
+    ansible-collections/community.general.git
+    ansible-collections/ansible.utils.git
+    ansible-collections/ansible.netcommon.git
+    ansible-collections/community.postgresql.git
+    ansible-collections/ansible.posix.git
+    ansible-collections/ansible.netcommon.git
+    ```
+
 - Заполнить файл inventory.ini    
 **Пример:**
    ```
