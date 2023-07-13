@@ -136,7 +136,7 @@ LV_NAME_BACKUP            | string  | lv_pgbackup              | Name logical vo
 PG_PROFILE                | bool    | false                    | Activate setup modul pg_profile
 CRON_PROFILE_HOUR         | string  | *                        | Start crontab pg_profile every hour
 CRON_PROFILE_MIN          | string  | */20                     | Start crontab pg_profile every 20 minute                             
-NAME_PG_PROFILE           | string  | "pg_profile--4.2.tar.gz" | Location of the archive in the folder with files. https://github.com/zubkov-andrei/pg_profile                                 
+NAME_PG_PROFILE           | string  | "pg_profile--4.2.tar.gz" | Location of the archive in the folder with files. You can download the archive here https://github.com/zubkov-andrei/pg_profile                                 
 **Enable/Disable module** |         |                          |                                
 PG_AUDIT                  | bool    | false                    | Activate setup modul pgaudit, pg_proaudit                                    
 **DELETE INSTALLED POSTGRES**|      |                          |                 
