@@ -50,14 +50,14 @@ Ansible:  2.9.27
 
 **Набор минимальных параметров для standalone**
 
-**Parameter HostGroup**   | **Type**| **Default values**       |           **INFO**
+**Parameter Host Group**   | **Type**| **Default values**       |           **INFO**
 --------------------------|---------|--------------------------|-----------------------------------------------------------------
 POSTGRES_VENDOR           | string  | postgresql               | Postgres vendor value "postgresql" or "postgrespro"                      
 POSTGRES_VERSION          | integer | 14                       | Minimal postgres version value "11"                  
 
 **Набор минимальных параметров для cluster**
 
-**Parameter HostGroup**   | **Type**| **Default values**       |             **INFO**
+**Parameter Host Group**   | **Type**| **Default values**       |             **INFO**
 --------------------------|---------|--------------------------|-----------------------------------------------------------------
 POSTGRES_VENDOR           | string  | postgresql               | Postgres vendor value "postgresql" or "postgrespro"                      
 POSTGRES_VERSION          | integer | 14                       | Minimal postgres version value "11"                 
@@ -72,7 +72,7 @@ VIRTUAL_IP                | string  | -                        | Cluster virtual
 ## Установка через Satellite
 
 - Добавить в группу требуемые хосты    
-- Заполнить глобальные параметры hostgroup 
+- Заполнить глобальные параметры host group 
 - Добавить роли в параметры серверов role_server
 
 **Набор минимальных параметров для standalone**
@@ -81,7 +81,7 @@ VIRTUAL_IP                | string  | -                        | Cluster virtual
 |--------------------------|---------|--------------------------|-----------------------------------------------------------------
 |role_server               | string  | master                   | Valid values master, slave, quorum                    
 |                          |         |                          |
-|**Parameter HostGroup**   | **Type**| **Default values**       |             **INFO**
+|**Parameter Host Group**   | **Type**| **Default values**       |             **INFO**
 |POSTGRES_VENDOR           | string  | postgresql               | Postgres vendor value "postgresql" or "postgrespro"                      
 |POSTGRES_VERSION          | integer | 14                       | Minimal postgres version value "11"                  
 
@@ -94,7 +94,7 @@ VIRTUAL_IP                | string  | -                        | Cluster virtual
 |**Parameter Host №2**     | **Type**| **Default values**       |             **INFO**
 |role_server               | string  | slave                    | Valid values master, slave, quorum   
 |                          |         |                          |
-|**Parameter HostGroup**   | **Type**| **Default values**       |             **INFO**
+|**Parameter Host Group**   | **Type**| **Default values**       |             **INFO**
 |POSTGRES_VENDOR           | string  | postgresql               | Postgres vendor value "postgresql" or "postgrespro"                      
 |POSTGRES_VERSION          | integer | 14                       | Minimal postgres version value "11"      
 |VIRTUAL_IP                | string  | -                        | Cluster virtual IP. e.g. 192.168.0.4                                           
