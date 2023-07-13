@@ -13,7 +13,6 @@
   with_items: "{{ running_processes.stdout_lines }}"
   ignore_errors: True
 
-
 - name: Delete pcs, pacemaker, corosync
   yum:
     name:
