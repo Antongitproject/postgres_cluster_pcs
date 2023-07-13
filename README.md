@@ -10,7 +10,7 @@ RedOS: 7.3
 PostgreSQL: 11,12,13,14,15    
 PostgresProEE: 11,12,13,14    
 
-Ansible:  2.9.27
+Ansible:  2.13.5
 
 ## Схема кластера
 ![schema](images/schema-3.jpg)
@@ -26,7 +26,7 @@ Ansible:  2.9.27
 - Убедится, что hostname настроены верно    
 - Убедится, что firewalld, nftables или iptables настроен (tcp: 5432, 2224 / udp: 5404, 5405).
 
-## Установка через ansible      
+## Требуемые коллекции
 - Добавить коллекции в ansible:
     ```
     community.general
@@ -36,6 +36,8 @@ Ansible:  2.9.27
     ansible.posix
     ansible.netcommon
     ```
+
+## Установка через ansible      
 
 - Заполнить файл inventory.ini    
 **Пример:**
