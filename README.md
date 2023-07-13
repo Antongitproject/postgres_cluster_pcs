@@ -29,12 +29,12 @@ Ansible:  2.9.27
 ## Установка через ansible      
 - Добавить коллекции в ansible:
     ```
-    ansible-collections/community.general.git
-    ansible-collections/ansible.utils.git
-    ansible-collections/ansible.netcommon.git
-    ansible-collections/community.postgresql.git
-    ansible-collections/ansible.posix.git
-    ansible-collections/ansible.netcommon.git
+    community.general
+    ansible.utils
+    ansible.netcommon
+    community.postgresql
+    ansible.posix
+    ansible.netcommon
     ```
 
 - Заполнить файл inventory.ini    
