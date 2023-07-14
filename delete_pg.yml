@@ -9,7 +9,7 @@
   tasks:
 
   - name: Destroy cluster
-    shell: "pcs cluster destroy cluster"
+    shell: "pcs cluster destroy {{ NAME_CLUSTER }}"
     ignore_errors: True
 
   - name: Get running processes

@@ -17,30 +17,6 @@
   set_fact:
     PGDATA_PATH: "{{ DBMS_ROOT_DIRECTORY }}/{{ DATA_DIR_NAME }}"
 
-- name: Facts Postgres Pro 
-  set_fact:
-    POSTGRES_PACK_NAME: "postgrespro-ent-"
-    POSTGRES_PATH_DIR: "/opt/pgpro/ent-{{POSTGRES_VERSION}}"
-    PG_AUDIT_NAME: "pg_proaudit"
-  when: ( POSTGRES_VENDOR == "postgrespro")
-
-- name: Facts Postgres SQL
-  set_fact:
-    POSTGRES_PACK_NAME: "postgresql"
-    POSTGRES_PATH_DIR: "/usr/pgsql-{{POSTGRES_VERSION}}"
-    PG_AUDIT_NAME: "pgaudit"
-  when: ( POSTGRES_VENDOR == "postgresql")
-
-- name: Facts Postgres
-  set_fact:
-    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
-    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
-
-- name: Facts Postgres SQL
-  set_fact:
-    PG_AUDIT_VERSION: "{{ POSTGRES_VERSION|int + 2 }}"
-  when: ( POSTGRES_VENDOR == "postgresql")
-
 - name: Count the number of hosts in slave_serves
   set_fact: 
     slave_servers_count: "{{ groups['slave_servers']| default([])|length  }}" 
@@ -81,6 +57,29 @@
   run_once: true
   delegate_facts: true
   when: quorum_servers_count|int >= 1
+
+- name: Set fact ip
+  set_fact:
+    ip: "{{ ansible_default_ipv4.address }}/{{ansible_default_ipv4.netmask }}"    
+
+- name: Set fact mask_cidr
+  set_fact:
+    mask_cidr: "{{ ip | ipaddr('prefix') }}"
+
+- name: Set fact connection_method "trust"
+  set_fact:
+    connection_method: "trust"
+  when: ( total_count_servers_group_slave|int  >= 1  )
+
+- name: Set fact connection_method "md5"
+  set_fact:
+    connection_method: "md5"
+  when: ( total_count_servers_group_slave|int == 0 )
+
+- name: Backup directory path
+  set_fact:
+    DBMS_BACKUP_DIRECTORY: "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
+  when: DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined
 
 - name: Set fact pass_replica_db
   set_fact:
@@ -123,26 +122,24 @@
   delegate_to: localhost
   run_once: true
   delegate_facts: true
+  when: ( POSTGRES_VENDOR == "postgrespro") 
 
-- name: Set fact ip
+- name: Facts Postgres Pro 
   set_fact:
-    ip: "{{ ansible_default_ipv4.address }}/{{ansible_default_ipv4.netmask }}"    
+    POSTGRES_PACK_NAME: "postgrespro-ent-"
+    POSTGRES_PATH_DIR: "/opt/pgpro/ent-{{POSTGRES_VERSION}}"
+    PG_AUDIT_NAME: "pg_proaudit"
+  when: ( POSTGRES_VENDOR == "postgrespro")
 
-- name: Set fact mask_cidr
+- name: Facts Postgres SQL
   set_fact:
-    mask_cidr: "{{ ip | ipaddr('prefix') }}"
+    POSTGRES_PACK_NAME: "postgresql"
+    POSTGRES_PATH_DIR: "/usr/pgsql-{{POSTGRES_VERSION}}"
+    PG_AUDIT_NAME: "pgaudit"
+    PG_AUDIT_VERSION: "{{ POSTGRES_VERSION|int + 2 }}"
+  when: ( POSTGRES_VENDOR == "postgresql")
 
-- name: Set fact connection_method "trust"
+- name: Facts Postgres
   set_fact:
-    connection_method: "trust"
-  when: ( total_count_servers_group_slave|int  >= 1  )
-
-- name: Set fact connection_method "md5"
-  set_fact:
-    connection_method: "md5"
-  when: ( total_count_servers_group_slave|int == 0 )
-
-- name: Backup directory path
-  set_fact:
-    DBMS_BACKUP_DIRECTORY: "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
-  when: DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined
+    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
+    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"

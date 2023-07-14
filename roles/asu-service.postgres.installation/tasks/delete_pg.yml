@@ -1,7 +1,7 @@
 ---
 
 - name: Destroy cluster
-  shell: "pcs cluster destroy cluster"
+  shell: "pcs cluster destroy {{ NAME_CLUSTER }}"
   ignore_errors: True
 
 - name: Get running processes
@@ -34,7 +34,7 @@
     - "{{ PG_LOG_DIR }}"
     - "{{ DBMS_ROOT_DIRECTORY }}/tmp/PGSQL.lock"
     - "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
-    - "{{ DBMS_BACKUP_DIRECTORY }}/*" 
+    - "{{ DBMS_BACKUP_DIRECTORY }}/pg*" 
   when:  DATA_DIR_NAME != '' or DBMS_ROOT_DIRECTORY != '' or PG_LOG_DIR != '' or DATA_DIR_NAME != '/' or DBMS_ROOT_DIRECTORY != '/' or PG_LOG_DIR != '/'
 
 - name: Force kill hacluster and postgres
