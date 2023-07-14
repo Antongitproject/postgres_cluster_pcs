@@ -10,9 +10,9 @@ RedOS: 7.3
 PostgreSQL: 11,12,13,14,15    
 PostgresProEE: 11,12,13,14    
 
-Ansible: 2.13.5
-Katello: 4.8.0
-Satellite: 6.8.3
+Ansible: 2.13.5    
+Katello: 4.8.0    
+Satellite: 6.8.3    
 
 ## Схема кластера
 ![schema](images/schema-3.jpg)
@@ -80,7 +80,7 @@ VIRTUAL_IP                | string  | -                        | Cluster virtual
     ansible-playbook -i inventory.ini main-ansible.yml --ask-pass    
     ```
 
-## Установка через Satellite
+## Установка через Satellite, Katello
 
 - Добавить в группу требуемые хосты    
 - Заполнить глобальные параметры host group 
