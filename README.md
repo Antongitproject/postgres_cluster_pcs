@@ -10,7 +10,7 @@ RedOS: 7.3
 PostgreSQL: 11,12,13,14,15    
 PostgresProEE: 11,12,13,14    
 
-Ansible:  2.13.5
+Ansible: 2.13.5
 
 ## Схема кластера
 ![schema](images/schema-3.jpg)
@@ -32,9 +32,7 @@ Ansible:  2.13.5
     community.general
     ansible.utils
     ansible.netcommon
-    community.postgresql
     ansible.posix
-    ansible.netcommon
     ```
 
 ## Установка через ansible      
