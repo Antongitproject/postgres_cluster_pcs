@@ -21,25 +21,20 @@
   set_fact:
     POSTGRES_PACK_NAME: "postgrespro-ent-"
     POSTGRES_PATH_DIR: "/opt/pgpro/ent-{{POSTGRES_VERSION}}"
-  when: ( POSTGRES_VENDOR == "postgrespro")
-
-- name: Facts Postgres Pro
-  set_fact:
-    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
-    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
+    PG_AUDIT_NAME: "pg_proaudit"
   when: ( POSTGRES_VENDOR == "postgrespro")
 
 - name: Facts Postgres SQL
   set_fact:
     POSTGRES_PACK_NAME: "postgresql"
     POSTGRES_PATH_DIR: "/usr/pgsql-{{POSTGRES_VERSION}}"
+    PG_AUDIT_NAME: "pgaudit"
   when: ( POSTGRES_VENDOR == "postgresql")
 
-- name: Facts Postgres SQL
+- name: Facts Postgres
   set_fact:
     POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
     POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
-  when: ( POSTGRES_VENDOR == "postgresql")
 
 - name: Facts Postgres SQL
   set_fact:
@@ -135,7 +130,6 @@
 
 - name: Set fact mask_cidr
   set_fact:
-#    mask_cidr: "{{ ip | ansible.util.ipaddr }}"
     mask_cidr: "{{ ip | ipaddr('prefix') }}"
 
 - name: Set fact connection_method "trust"
@@ -147,16 +141,6 @@
   set_fact:
     connection_method: "md5"
   when: ( total_count_servers_group_slave|int == 0 )
-
-- name: Set pg_audit_name
-  set_fact:
-    pg_audit_name: "pg_proaudit"
-  when: ( POSTGRES_VENDOR == "postgrespro")
-
-- name: Set pg_audit_name
-  set_fact:
-    pg_audit_name: "pgaudit"
-  when: ( POSTGRES_VENDOR == "postgresql")
 
 - name: Backup directory path
   set_fact:
