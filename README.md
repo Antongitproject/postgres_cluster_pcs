@@ -11,6 +11,8 @@ PostgreSQL: 11,12,13,14,15
 PostgresProEE: 11,12,13,14    
 
 Ansible: 2.13.5
+Katello: 4.8.0
+Satellite: 6.8.3
 
 ## Схема кластера
 ![schema](images/schema-3.jpg)
@@ -35,7 +37,7 @@ Ansible: 2.13.5
     ansible.posix
     ```
 
-## Установка через ansible      
+## Установка через Ansible      
 
 - Заполнить файл inventory.ini    
 **Пример:**
