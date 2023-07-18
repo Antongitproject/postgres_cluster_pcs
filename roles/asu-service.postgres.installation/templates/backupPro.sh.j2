@@ -119,7 +119,7 @@ fi
 
 # Запись на ERROR в pg_probackup show
 function add_backup_error_file {
-mkdir ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/AAAAAA
+mkdir ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB
 echo "#Configuration
 backup-mode = ${back_type}
 
@@ -132,7 +132,7 @@ end-time = '${start_date}'
 recovery-xid = 0
 uncompressed-bytes = 0
 pgdata-bytes = 0
-status = ERROR" > ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/AAAAAA/backup.control
+status = ERROR" > ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB/backup.control
 }
 
 ############################################################################
