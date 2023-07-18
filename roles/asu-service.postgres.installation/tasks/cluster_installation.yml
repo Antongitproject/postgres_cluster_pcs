@@ -73,7 +73,8 @@
   loop:
     - pcs cluster auth -u hacluster -p "{{ hostvars['localhost']['pass_hacluster'] }}" {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
     - pcs cluster setup --start --name {{ NAME_CLUSTER }} {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
-  when: ( ansible_os_family == "RedHat" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+  when: ( PACEMAKER_VERSION.stdout|int <= 1 ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+#  when: ( ansible_os_family == "RedHat" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
 
 - name: Auth cluster pcs
   command: 
@@ -81,7 +82,8 @@
   loop:
     - pcs host auth -u hacluster -p "{{ hostvars['localhost']['pass_hacluster'] }}" {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
     - pcs cluster setup {{ NAME_CLUSTER }} {{ master_name }} {{ hostvars['localhost']['all_hosts_slave_group'] }} {{ hostvars['localhost']['all_hosts_quorum_group'] | default(' ') }}
-  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+  when: ( PACEMAKER_VERSION.stdout|int >= 2 ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
+#  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED" ) and ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server'] 
 
 
 - name: Delete content directory /var/lib/pacemaker/cib
