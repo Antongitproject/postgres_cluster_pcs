@@ -86,6 +86,14 @@ VIRTUAL_IP                | string  | -                        | Cluster virtual
 - Заполнить глобальные параметры host group 
 - Добавить роли в параметры серверов role_server
 
+Параметр role_server:
+
+**master** - Сервер, который будет доступен на запись и чтение. Установленное ПО Postgres,pacemaker,corosync,pcs. Поднят виртуальный IP-address.
+
+**slave** - Сервер, который будет доступен только на чтение. Установленное ПО Postgres,pacemaker,corosync,pcs. Доступна роль master.
+
+**quorum** - Сервер, на котором будет установлено только кластерное ПО pacemaker,corosync,pcs. Роль master и slave данному серверу недоступна.
+
 **Набор минимальных параметров для standalone**
 
 |**Parameter Host**        | **Type**| **Default values**       |             **INFO**
