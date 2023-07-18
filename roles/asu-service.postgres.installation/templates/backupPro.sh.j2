@@ -119,7 +119,7 @@ fi
 
 # Запись на ERROR в pg_probackup show
 function add_backup_error_file {
-mkdir ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB
+mkdir ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/AAAAAA
 echo "#Configuration
 backup-mode = ${back_type}
 
@@ -132,7 +132,7 @@ end-time = '${start_date}'
 recovery-xid = 0
 uncompressed-bytes = 0
 pgdata-bytes = 0
-status = ERROR" > ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB/backup.control
+status = ERROR" > ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/AAAAAA/backup.control
 }
 
 ############################################################################
@@ -161,20 +161,22 @@ if [ $free_lv_backups -gt $size_back_new ];  then
 
   # Блок выполнения резервного копирования в режиме DELTA, PAGE
   if [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge ${COUNT_FULL_BACKUP_MIN} ] && [ ${MERGE_TYPE} == off ]; then #Проверка типа резервной копии 
+    ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
     if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
         status_backup=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
-        ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
         ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+#        ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
     fi
 
   # Блок выполнения резервного копирования в режиме DELTA/PAGE + MERGE
   elif [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge 1 ] && [ ${MERGE_TYPE} == on ]; then
     
     if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+    ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
        name_last_back=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} --format=json | grep id | head -1 | sed 's/"id": "//' | sed 's/",//' | xargs`
        if  ${PGPRO_BACKUP_PATH}/pg_probackup merge -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -i ${name_last_back}; then
            status_backup=`${PGPRO_BACKUP_PATH}pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head 0 | wc -l`
-           ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+#           ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
            ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
        fi  
     fi
@@ -182,9 +184,10 @@ if [ $free_lv_backups -gt $size_back_new ];  then
   # Блок выполнения резервного копирования в режиме FULL
   else
       back_type=FULL 
+      ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
       if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
          status_backup=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
-         ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+#         ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
          ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
       fi
   fi
