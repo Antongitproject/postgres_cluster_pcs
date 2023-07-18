@@ -90,7 +90,7 @@ this_day=`LANG=en_US.utf8 date +%a`
 # Дата запуска скрипта
 start_date=`date '+%Y-%m-%d %H:%M:%S'`
 # Подсчет успешных полных копий
-count_full_backup_detected=`${PGPRO_BACKUP_PATH}pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e FULL | grep -e OK | wc -l` 
+count_full_backup_detected=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e FULL | grep -e OK | wc -l` 
 
 ############################################################################
 #Рассчеты свободного места #################################################
