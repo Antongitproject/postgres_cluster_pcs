@@ -4,6 +4,10 @@
   command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_basebackup -h {{ master_name }} -U {{ USER_REPLICA}} -p {{ POSTGRES_PORT }} -D {{ PGDATA_PATH }} --checkpoint=fast -Xs"
   when: ('slave_servers' in groups and groups['slave_servers']) and inventory_hostname in groups['slave_servers']
 
+- name: Fact pacemaker version 
+  shell: "sudo yum info pacemaker | grep Version | head -1 | awk '{print substr ($3, 1, 1)}'"
+  register: PACEMAKER_VERSION
+
 - name: Set fact connection_method "md5"
   set_fact:
     connection_method: "md5"
@@ -150,7 +154,8 @@
         - "pcs  constraint colocation add master-group with Master msPostgresql INFINITY"
         - "pcs  constraint order promote msPostgresql then start master-group symmetrical=false score=INFINITY"
         - "pcs  constraint order demote  msPostgresql then stop  master-group symmetrical=false score=0"
-    when: ( ansible_os_family == "RedHat" )
+    when: ( PACEMAKER_VERSION|int == 1 )
+#    when: ( ansible_os_family == "RedHat" )
   
   - name: Add cluster resource msPostgresql
     shell: "{{ item }}"
@@ -160,7 +165,8 @@
         - pcs  constraint colocation add master-group with Master pgsql-clone
         - pcs  constraint order promote pgsql-clone then start master-group symmetrical=false score=INFINITY
         - pcs  constraint order demote pgsql-clone then stop master-group symmetrical=false score=0
-    when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  )
+    when: ( PACEMAKER_VERSION|int >= 2 )
+#    when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  )
   
   - name: Cluster stop on master_server
     command: "pcs cluster stop --force"
