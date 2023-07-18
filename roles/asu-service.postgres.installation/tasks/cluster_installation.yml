@@ -154,7 +154,7 @@
         - "pcs  constraint colocation add master-group with Master msPostgresql INFINITY"
         - "pcs  constraint order promote msPostgresql then start master-group symmetrical=false score=INFINITY"
         - "pcs  constraint order demote  msPostgresql then stop  master-group symmetrical=false score=0"
-    when: ( PACEMAKER_VERSION|int == 1 )
+    when: ( PACEMAKER_VERSION.stdout|int == 1 )
 #    when: ( ansible_os_family == "RedHat" )
   
   - name: Add cluster resource msPostgresql
@@ -165,7 +165,7 @@
         - pcs  constraint colocation add master-group with Master pgsql-clone
         - pcs  constraint order promote pgsql-clone then start master-group symmetrical=false score=INFINITY
         - pcs  constraint order demote pgsql-clone then stop master-group symmetrical=false score=0
-    when: ( PACEMAKER_VERSION|int >= 2 )
+    when: ( PACEMAKER_VERSION.stdout|int >= 2 )
 #    when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED"  )
   
   - name: Cluster stop on master_server
