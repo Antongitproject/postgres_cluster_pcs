@@ -1,6 +1,23 @@
 ---
 - block:
 
+  - name: Create directory backup
+    file: 
+      path: "{{ item }}"
+      state: directory
+    with_items:
+        - "{{ DBMS_BACKUP_DIRECTORY }}"
+        - "{{ DBMS_BACKUP_DIRECTORY }}/archive"
+        - "{{ DBMS_BACKUP_DIRECTORY }}/archive_xlog"
+
+  - name: Change owner postgres directory backups
+    file: 
+      path: "{{ DBMS_BACKUP_DIRECTORY }}"
+      state: directory
+      owner: postgres
+      group: postgres
+      recurse: yes
+
   - name: Install bc
     yum: 
       name: "bc"

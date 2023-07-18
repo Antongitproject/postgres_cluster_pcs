@@ -21,7 +21,6 @@
     with_items: "{{ running_processes.stdout_lines }}"
     ignore_errors: True
 
-
   - name: Delete pcs, pacemaker, corosync
     yum:
       name:
@@ -43,7 +42,11 @@
       - "{{ PG_LOG_DIR }}"
       - "{{ DBMS_ROOT_DIRECTORY }}/tmp/PGSQL.lock"
       - "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
-      - "{{ DBMS_BACKUP_DIRECTORY }}/*" 
+      - "{{ DBMS_BACKUP_DIRECTORY }}"
+      - "{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup"
+      - "{{ DBMS_BACKUP_DIRECTORY }}/archive_xlog"
+      - "{{ DBMS_BACKUP_DIRECTORY }}/archive"
+    ignore_errors: True
     when:  DATA_DIR_NAME != '' or DBMS_ROOT_DIRECTORY != '' or PG_LOG_DIR != '' or DATA_DIR_NAME != '/' or DBMS_ROOT_DIRECTORY != '/' or PG_LOG_DIR != '/'
 
   - name: Force kill hacluster and postgres

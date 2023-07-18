@@ -1,6 +1,19 @@
 ---
 - block: 
 
+  - name: Create directory backup
+    file: 
+      path: "{{ DBMS_BACKUP_DIRECTORY }}"
+      state: directory
+
+  - name: Change owner postgres directory backups
+    file: 
+      path: "{{ DBMS_BACKUP_DIRECTORY }}"
+      state: directory
+      owner: postgres
+      group: postgres
+      recurse: yes
+
   - name: Install pg_probackup
     yum:
       name:  
