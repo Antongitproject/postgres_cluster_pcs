@@ -133,7 +133,8 @@ POSTGRES_PORT             | integer | 5432                     | Port DB
 MAX_CONNECTION            | integer | 110                      | Superuser_reserved_connections = '10'. Specify the required number of users + 10                               
 USER_TECHNICAL            | string  | user_technical           | Technical user
 SAVE_LIST_PASSWORDS       | bool    | false                    | Save all passwords in the PGDATA directory                               
-PG_CUSTOM_OPT             | bool    | true                     | Optimization of standard DBMS parameters                               
+PG_CUSTOM_OPT             | bool    | true                     | Optimization of standard DBMS parameters      
+MOUNT_DISK                | bool    | false                    | Use auto mount                        
 **Setting cluster**       |         |                          |                          
 USER_REPLICA              | string  | user_replica             | Replication cluster user 
 VIRTUAL_IP                | string  | 192.168.0.5              | Cluster virtual IP. e.g. 192.168.0.4                               
@@ -146,6 +147,7 @@ VG_NAME_DBMS              | string  | vg_pgdata                | Name volume gro
 LV_NAME_DBMS              | string  | lv_pgdata                | Name logical volum DBMS_ROOT_DIRECTORY  e.g. lv_pgdata                                
 **Setting BACKUP**        |         |                          |                         
 PG_BACKUP                 | bool    | false                    | Activate backup setting
+PG_BACKUP_TYPE            | string  | pro_backup               | Type backup value "sql_backup" or "pro_backup". sql - standart backup utils pg_basebackup. pro - install pg_probackup
 USER_BACKUP               | string  | backup_user              | Backup user
 CRON_BACK_HOUR            | string  | 22                       | Start crontab backup at 22:00
 CRON_BACK_MIN             | string  | 00                       | Start crontab backup at 00 minutes
