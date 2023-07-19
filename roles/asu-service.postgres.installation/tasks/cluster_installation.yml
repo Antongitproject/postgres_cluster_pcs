@@ -24,12 +24,6 @@
 - name: Stop PG
   command: "sudo -iu postgres {{ POSTGRES_BIN }}/pg_ctl stop -D {{ PGDATA_PATH }}"
   when: ('master_server' in groups and groups['master_server']) and inventory_hostname in groups['master_server']
-  
-- name: Install pacemaker
-  yum:
-    name: pacemaker-2.0.4-5.el7.x86_64
-    state: present
-  when: ( ansible_os_family == "REDOS" or ansible_os_family == "RED" )  
 
 - name: Install pcs, pacemaker, corosync
   yum:
