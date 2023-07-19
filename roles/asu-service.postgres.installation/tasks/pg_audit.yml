@@ -5,10 +5,10 @@
   - name: Create extention pg_proaudit
     shell: "{{ item }}"
     loop:
-      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE EXTENSION {{ pg_audit_name }};"
+      - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE EXTENSION {{ PG_AUDIT_NAME }};"
   
   - name: Create extention pgaudit and change postgresql.auto.conf
-    shell: sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER SYSTEM SET {{ pg_audit_name }}.log = ROLE, DDL, MISC, FUNCTION"
+    shell: sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER SYSTEM SET {{ PG_AUDIT_NAME }}.log = ROLE, DDL, MISC, FUNCTION"
     when: POSTGRES_VENDOR == "postgresql"
   
   - name: Change postgresql.auto.conf

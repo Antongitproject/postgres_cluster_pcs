@@ -1,6 +1,6 @@
 
 #Для обеспечения внешних подключений: 
-{% if POSTGRES_VENDOR == "postgresql" and PG_BACKUP == true %}
+{% if PG_BACKUP_TYPE == "sql_backup" and PG_BACKUP == true %}
 {%  for host in groups['all'] %}
 host    postgres   postgres                {{ hostvars[host].ansible_default_ipv4.address }}/32               trust
 {%  if not loop.last %}
@@ -12,14 +12,14 @@ host    all        all                     {{ ansible_default_ipv4.network }}/{{
 #Для работы агента мониторинга, скрипта управления кластерным ресурсом pgsql, скрипта резервного копирования, 
 #консоли СУБД psql, модуля диагностики pg_profile и мониторинга числа соединений к БД:
 local   all        {{ USER_TECHNICAL }}                                              md5
-{% if POSTGRES_VENDOR == "postgrespro"  and PG_BACKUP == true %}
+{% if PG_BACKUP_TYPE == "pro_backup"  and PG_BACKUP == true %}
 local   {{ USER_BACKUP }} {{ USER_BACKUP }}                                             md5
 {% endif %}
 local   all        postgres                                               peer
 
 #Для создания локальной резервной копии
 local   replication     postgres                                          peer 
-{% if POSTGRES_VENDOR == "postgrespro" and PG_BACKUP == true %}
+{% if PG_BACKUP_TYPE == "pro_backup" and PG_BACKUP == true %}
 local   replication     {{ USER_BACKUP }}                                        md5
 {% endif %}
 

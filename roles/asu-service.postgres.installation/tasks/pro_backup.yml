@@ -1,10 +1,40 @@
 ---
 - block: 
 
-  - name: Create directory backup
-    file: 
-      path: "{{ DBMS_BACKUP_DIRECTORY }}"
-      state: directory
+  - name: Set fact pass_pro_backup_db
+    set_fact:
+      pass_pro_backup_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"    
+    delegate_to: localhost
+    run_once: true
+    delegate_facts: true
+
+  - name: Set fact PGPRO_BACKUP_NAME_UTIL and PGPRO_BACKUP_PATH
+    set_fact:
+       PGPRO_BACKUP_NAME_UTIL: "pg_probackup"       
+       PGPRO_BACKUP_PATH: "/opt/pgpro/ent-{{ POSTGRES_VERSION }}/bin"
+    when: ( POSTGRES_VENDOR == "postgrespro" )
+
+  - name: Install pg_probackup
+    yum:
+      name:  
+        - pg-probackup-ent-{{POSTGRES_VERSION}}  
+        - pg-probackup-ent-{{POSTGRES_VERSION}}-debuginfo
+      state: present 
+    when: ( POSTGRES_VENDOR == "postgrespro" )
+
+  - name: Set fact PGPRO_BACKUP_NAME_UTIL and PGPRO_BACKUP_PATH
+    set_fact:
+       PGPRO_BACKUP_NAME_UTIL: "pg_probackup-{{ POSTGRES_VERSION }}"
+       PGPRO_BACKUP_PATH: "/usr/bin"
+    when: ( POSTGRES_VENDOR == "postgresql" )
+
+  - name: Install pg_probackup
+    yum:
+      name:  
+        - pg_probackup-{{POSTGRES_VERSION}}  
+        - pg_probackup-{{POSTGRES_VERSION}}-debuginfo
+      state: present 
+    when: ( POSTGRES_VENDOR == "postgresql" )
 
   - name: Change owner postgres directory backups
     file: 
@@ -14,13 +44,6 @@
       group: postgres
       recurse: yes
 
-  - name: Install pg_probackup
-    yum:
-      name:  
-        - pg-probackup-ent-{{POSTGRES_VERSION}}  
-        - pg-probackup-ent-{{POSTGRES_VERSION}}-debuginfo
-      state: present 
-  
   - name: Change .bash_profile
     template:
       src: "bash_profile.j2"
@@ -69,9 +92,9 @@
   - name: Init pg_probackup
     shell: "{{ item }}"   
     loop: 
-      - "sudo -iu postgres {{ POSTGRES_BIN }}/pg_probackup init -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/"
-      - "sudo -iu postgres {{ POSTGRES_BIN }}/pg_probackup add-instance -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance=`hostname` --pgdata={{ PGDATA_PATH }}"
-      - "sudo -iu postgres {{ POSTGRES_BIN }}/pg_probackup set-config -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance `hostname` --retention-redundancy=2 --retention-window=7 --wal-depth=2 "
+      - "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} init -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/"
+      - "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} add-instance -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance=`hostname` --pgdata={{ PGDATA_PATH }}"
+      - "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} set-config -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance `hostname` --retention-redundancy=2 --retention-window=7 --wal-depth=2 "
   
   - name: Copy script backupPro.sh
     template:

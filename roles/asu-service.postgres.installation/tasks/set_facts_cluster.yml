@@ -79,7 +79,7 @@
 - name: Backup directory path
   set_fact:
     DBMS_BACKUP_DIRECTORY: "{{ DBMS_ROOT_DIRECTORY }}{{ DBMS_BACKUP_DIRECTORY }}"
-  when: DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined
+  when: ( DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined ) and MOUNT_DISK|bool == true
 
 - name: Set fact pass_replica_db
   set_fact:
@@ -115,14 +115,6 @@
   delegate_to: localhost
   run_once: true
   delegate_facts: true
-
-- name: Set fact pass_pro_backup_db
-  set_fact:
-    pass_pro_backup_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"    
-  delegate_to: localhost
-  run_once: true
-  delegate_facts: true
-  when: ( POSTGRES_VENDOR == "postgrespro") 
 
 - name: Facts Postgres Pro 
   set_fact:

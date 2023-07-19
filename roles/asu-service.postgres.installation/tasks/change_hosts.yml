@@ -30,4 +30,4 @@
   file: 
     path: "{{ DBMS_BACKUP_DIRECTORY }}"
     state: directory
-  when: ( PG_BACKUP|bool == true and ('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))
+  when: PG_BACKUP|bool == true and (('master_server' in groups and groups['master_server']) and (inventory_hostname in groups['master_server'])) or (('slave_servers' in groups and groups['slave_servers']) and (inventory_hostname in groups['slave_servers']))

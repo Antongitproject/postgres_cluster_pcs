@@ -45,15 +45,7 @@
     with_items: 
       - "{{ PG_LOG_DIR }}"
       - "{{ DBMS_ROOT_DIRECTORY }}"
- 
-  - name: Change owner postgres directory backups
-    file: 
-      path: "{{ DBMS_BACKUP_DIRECTORY }}"
-      state: directory
-      owner: postgres
-      group: postgres
-    when: ( PG_BACKUP|bool == true )
-  
+
   - name: Stop PG
     systemd:
       name: "{{ POSTGRES_PACK_NAME }}{{POSTGRES_VERSION}}"

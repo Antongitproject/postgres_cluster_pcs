@@ -19,9 +19,11 @@ NAME_LV_BACKUPS={% if DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defi
 # Имя инстанца добавленного в утилиту pg_probackup "add-instance"
 NAME_INSTANCE=`hostname`
 # Версия СУБД
-VERSION_PG_PRO=`cat ${PGDATA_DIR_PATH}/PG_VERSION`
+POSTGRES_VERSION={{ POSTGRES_VERSION }}
 # Путь к директории хранения исполняемого файла pg_probackup
-PGPRO_BACKUP_PATH=/opt/pgpro/ent-${VERSION_PG_PRO}/bin
+PGPRO_BACKUP_PATH={{ PGPRO_BACKUP_PATH }}
+# Имя утилиты
+PGPRO_BACKUP_NAME_UTIL={{ PGPRO_BACKUP_NAME_UTIL }}
 # Дни выполнения неполных бекапов DELTA, Допустиммые значения "Mon,Tue,Wed,Thu,Fri,Sat,Sun" разделитель "," обязателен. Если день одинаково указан и для DELTA и для PAGE, будет выполнена резервная копия в режиме FULL.
 DELTA_DAY=""
 # Дни выполнения неполных бекапов PAGE, Допустиммые значения "Mon,Tue,Wed,Thu,Fri,Sat,Sun" разделитель "," обязателен. Если день одинаково указан и для DELTA и для PAGE, будет выполнена резервная копия в режиме FULL.
@@ -90,7 +92,7 @@ this_day=`LANG=en_US.utf8 date +%a`
 # Дата запуска скрипта
 start_date=`date '+%Y-%m-%d %H:%M:%S'`
 # Подсчет успешных полных копий
-count_full_backup_detected=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e FULL | grep -e OK | wc -l` 
+count_full_backup_detected=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e FULL | grep -e OK | wc -l` 
 
 ############################################################################
 #Рассчеты свободного места #################################################
@@ -103,7 +105,7 @@ if [ -z $free_lv_backups ]; then
     exit 0;
 fi
 
-name_old_backup=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e OK | grep -e FULL | head -1 | awk '{print $3}'`
+name_old_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e OK | grep -e FULL | head -1 | awk '{print $3}'`
 
 if [ -n "${name_old_backup}" ]; then
     size_old_backup=`cat ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/${name_old_backup}/backup.control | grep ^data-bytes | awk '{print $3}'`
@@ -161,34 +163,34 @@ if [ $free_lv_backups -gt $size_back_new ];  then
 
   # Блок выполнения резервного копирования в режиме DELTA, PAGE
   if [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge ${COUNT_FULL_BACKUP_MIN} ] && [ ${MERGE_TYPE} == off ]; then #Проверка типа резервной копии 
-    ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
-    if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
-        status_backup=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
-        ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
-#        ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+    ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+    if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+        status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
+        ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+#        ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
     fi
 
   # Блок выполнения резервного копирования в режиме DELTA/PAGE + MERGE
   elif [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge 1 ] && [ ${MERGE_TYPE} == on ]; then
     
-    if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
-    ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
-       name_last_back=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} --format=json | grep id | head -1 | sed 's/"id": "//' | sed 's/",//' | xargs`
-       if  ${PGPRO_BACKUP_PATH}/pg_probackup merge -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -i ${name_last_back}; then
-           status_backup=`${PGPRO_BACKUP_PATH}pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head 0 | wc -l`
-#           ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
-           ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+    if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+    ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+       name_last_back=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} --format=json | grep id | head -1 | sed 's/"id": "//' | sed 's/",//' | xargs`
+       if  ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} merge -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -i ${name_last_back}; then
+           status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head 0 | wc -l`
+#           ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+           ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
        fi  
     fi
 
   # Блок выполнения резервного копирования в режиме FULL
   else
       back_type=FULL 
-      ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
-      if ${PGPRO_BACKUP_PATH}/pg_probackup backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
-         status_backup=`${PGPRO_BACKUP_PATH}/pg_probackup show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
-#         ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
-         ${PGPRO_BACKUP_PATH}/pg_probackup delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+      ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+      if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+         status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
+#         ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+         ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
       fi
   fi
 

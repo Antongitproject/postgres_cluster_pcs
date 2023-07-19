@@ -13,11 +13,13 @@ NAME_CLUSTER: "ansible_cluster_playbook"
 USER_REPLICA: "user_replica"
 TIME_OUT: 180 
 TIMEOUT_COROSYNC: 4000 
+MOUNT_DISK: false
 DISK_DEVICE_DBMS: "" 
 SIZE_DBMS_IN_PROCENT:  100
 VG_NAME_DBMS: "vg_pgdata" 
 LV_NAME_DBMS: "lv_pgdata" 
 PG_BACKUP: false
+PG_BACKUP_TYPE: "pro_backup"
 USER_BACKUP: "user_backup"
 DBMS_BACKUP_DIRECTORY: "/backups_dir"
 CRON_BACK_HOUR: "22"

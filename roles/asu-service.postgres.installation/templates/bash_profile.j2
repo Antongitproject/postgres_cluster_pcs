@@ -2,6 +2,6 @@
 PGDATA={{ PGDATA_PATH }}    
 export PGDATA     
 [ -f {{ postgres_home_dir }}/.pgsql_profile ] && source /var/lib/pgsql/.pgsql_profile    
-BACKUP_PATH=/{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup    
+BACKUP_PATH={{ DBMS_BACKUP_DIRECTORY }}/pg_probackup    
 export BACKUP_PATH    
-alias pg_probackup='/opt/pgpro/ent-{{POSTGRES_VERSION}}/bin/pg_probackup'    
+alias pg_probackup='{{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }}'    
