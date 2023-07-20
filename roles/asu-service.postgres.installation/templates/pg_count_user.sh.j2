@@ -26,8 +26,8 @@ count_users=`psql -At -p {{ POSTGRES_PORT }} -c 'select count(*) from pg_stat_ac
 timestamp_us=`date +"%m-%d-%Y %T"`
 
 # Запись данных в лог файл.
-echo -e "$count_users; $timestamp_us" >> ${LOG_FILE_DIR}${FILE_NAME_LOG}-`date +%m-%d`.log
+echo -e "$count_users; $timestamp_us" >> ${LOG_FILE_DIR}/${FILE_NAME_LOG}-`date +%m-%d`.log
 
 # Ротация старых логов файлов.
-rm -rf `find ${LOG_FILE_DIR}${FILE_NAME_LOG}* -mtime +$copies`
+rm -rf `find ${LOG_FILE_DIR}/${FILE_NAME_LOG}* -mtime +$copies`
 
