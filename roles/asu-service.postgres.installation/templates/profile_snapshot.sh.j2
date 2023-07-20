@@ -30,7 +30,7 @@ do
         then 
                 break;
         else
-                echo "Не удалось создать снепшот pg_profile `date +"%m-%d-%Y %T"`" >> ${LOG_FILE_DIR}${LOG_FILE_NAME}
+                echo "Не удалось создать снепшот pg_profile `date +"%m-%d-%Y %T"`" >> ${LOG_FILE_DIR}/${LOG_FILE_NAME}
         fi
 sleep 30
 done
