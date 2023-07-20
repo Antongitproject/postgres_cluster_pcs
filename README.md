@@ -149,7 +149,7 @@ LV_NAME_DBMS              | string  | lv_pgdata                | Name logical vo
 PG_BACKUP                 | bool    | false                    | Activate backup setting
 PG_BACKUP_TYPE            | string  | pro_backup               | Type backup value "sql_backup" or "pro_backup". sql - standart backup utils pg_basebackup. pro - install pg_probackup
 USER_BACKUP               | string  | backup_user              | Backup user
-CRON_BACK_HOUR            | string  | 22                       | Start crontab backup at 22:00
+CRON_BACK_HOUR            | string  | 22                       | Start crontab backup at 22 hour
 CRON_BACK_MIN             | string  | 00                       | Start crontab backup at 00 minutes
 DBMS_BACKUP_DIRECTORY     | string  | /backups_pg              | Root directory BACKUP                                                              
 DISK_DEVICE_BACKUP        | string  | -                        | If the device is not specified, then the mount will not be performed. e.g. /dev/sdс
