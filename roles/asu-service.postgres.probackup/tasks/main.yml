@@ -1,0 +1,7 @@
+---
+
+  - name: Include set_facts
+    include: set_fact.yml
+
+  - name: Include set_facts
+    include: pro_backup.yml

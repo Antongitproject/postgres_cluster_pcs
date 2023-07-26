@@ -1,0 +1,17 @@
+DATA_DIR_NAME: "data"
+postgres_home_dir: "/var/lib/pgsql"
+PG_LOG_DIR: "/var/log/pg_log_dir"
+DBMS_ROOT_DIRECTORY: "/backups_dir"
+DBMS_BACKUP_DIRECTORY: "/backups_dir"
+POSTGRES_PORT: 5432
+USER_TECHNICAL: "user_technical"
+USER_BACKUP: "user_backup"
+CRON_BACK_HOUR: "22"
+CRON_BACK_MIN: "00"
+DISK_DEVICE_BACKUP: "" 
+ARCHIVE_PG_WAL: true
+DELTA_MERGE: true
+RETENTION_REDUNDANCY: 2
+RETENTION_WINDOW: 7
+WAL_DEPTH: 2
+

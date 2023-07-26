@@ -1,0 +1,200 @@
+#!/bin/bash
+
+############################################################################
+#Настраиваемые переменные###################################################
+############################################################################
+
+# Путь к файлу скрипта резервного копирования
+SCRIPT_FILE_PATH={{ postgres_home_dir }}/backupPro.sh
+# Директория хранения СУБД 
+PGDATA_DIR_PATH={{ PGDATA_PATH }}
+# Директория инициализации утилиты pg_probackup
+PG_PROBACKUP_DIR_PATH={{ DBMS_BACKUP_DIRECTORY }}/pg_probackup
+# Директория хранения резервных копий
+BACKUP_DIR_PATH={{ DBMS_BACKUP_DIRECTORY }}
+# Директория хранения диагностических журналов
+LOG_NAME_DB_PATH={{ PG_LOG_DIR }}/postgresql-`date +%a`.log;
+# Путь монтирования логического тома резервных копийW
+NAME_LV_BACKUPS={% if DISK_DEVICE_BACKUP == "" or DISK_DEVICE_BACKUP is not defined %}{{DBMS_ROOT_DIRECTORY}}{% else %}{{ DBMS_BACKUP_DIRECTORY }}{% endif %}    
+# Имя инстанца добавленного в утилиту pg_probackup "add-instance"
+NAME_INSTANCE=`hostname`
+# Версия СУБД
+POSTGRES_VERSION={{ POSTGRES_VERSION }}
+# Путь к директории хранения исполняемого файла pg_probackup
+PGPRO_BACKUP_PATH={{ PGPRO_BACKUP_PATH }}
+# Имя утилиты
+PGPRO_BACKUP_NAME_UTIL={{ PGPRO_BACKUP_NAME_UTIL }}
+# Дни выполнения неполных бекапов DELTA, Допустиммые значения "Mon,Tue,Wed,Thu,Fri,Sat,Sun" разделитель "," обязателен. Если день одинаково указан и для DELTA и для PAGE, будет выполнена резервная копия в режиме FULL.
+DELTA_DAY={% if DELTA_MERGE|bool == true %}"Mon,Tue,Wed,Thu,Fri,Sat,Sun"{% else %}""{% endif %}    
+# Дни выполнения неполных бекапов PAGE, Допустиммые значения "Mon,Tue,Wed,Thu,Fri,Sat,Sun" разделитель "," обязателен. Если день одинаково указан и для DELTA и для PAGE, будет выполнена резервная копия в режиме FULL.
+PAGE_DAY=""
+# Колличество обязательных полных копий. Минимальное значение 1
+COUNT_FULL_BACKUP_MIN=2
+# Алгоритм сжатия резервных копий (zlib, pglz, none)
+COMPRESS_ALG=zlib
+# Уровень сжатия резервных копий копий от 0-9, где 9 является самым  сильным уровнем сжатия
+COMPRESS_LEVEL=9
+# Количество потоков
+JOBS_COUNT=1
+# Функция DELTA/PAGE + MERGE, Допустимые значения off/on. В этом режиме хранится только одна полная копия бекапа. Все дни должны быть перечислены в режиме DELTA или PAGE, иначе выполнится FULL.
+MERGE_TYPE={% if DELTA_MERGE|bool == true %}on{% else %}off{% endif %}  
+# Пользователь БД для работы утилиты pg_probackup
+USER_PRO_BACKUP=pro_backup
+# База данных для подключения
+DB_PRO_BACKUP=pro_backup
+
+############################################################################
+#Блок передаваемых ключей и исключений######################################
+############################################################################
+
+input_arg="${1} ${2} ${3} ${4}"
+search_error_arg=`echo ${input_arg} | grep -E 'postgres|show|data|psql|var|log|lib|etc|~|opt|less|url|sh|host|ls|ll|nmtui|mc|iptables|ctl|system|dd|echo|mount|check|rm|cat|vi|scp|cp|mv|chown|chmod|/|nano|emac' | wc -l`
+
+counter=1
+
+while [ $counter -le 4 ]; do
+    if [ -n "${!counter}" ]; then
+        alg=$(echo ${!counter} | grep -E 'DELTA_DAY|PAGE_DAY|COMPRESS_LEVEL|JOBS_COUNT' | wc -l)
+        if [ ${alg} -ne 1 ]; then
+            echo "Ключ ${!counter} не соответствует допустимым значениям"
+            exit 0
+        fi
+    fi
+    counter=$((counter + 1))
+done
+
+if [ ${search_error_arg} -gt 0 ]; then
+    echo "Введено недопустиммое значение"
+    exit 0;
+fi
+
+declare $1 > /dev/null 1>&1
+declare $2 > /dev/null 1>&1
+declare $3 > /dev/null 1>&1
+declare $4 > /dev/null 1>&1
+
+############################################################################
+#Проверка на запущенный процесс резервного копирования######################
+############################################################################
+find_process_backup_db=`ps -ef | grep pg_probackup | wc -l`
+if [ ${find_process_backup_db} -gt 1 ]; then
+   echo "Процесс pg_probackup запущен на сервере. Повторный запуск не возможен пока процесс pg_probackup существует"
+   echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >WARN: Running a duplicate pg_probackup job " > ${LOG_NAME_DB_PATH}
+   exit 0
+fi
+
+############################################################################
+#Другие переменные##########################################################
+############################################################################
+
+# Определение текущего дня в английской кодировке
+this_day=`LANG=en_US.utf8 date +%a`
+# Дата запуска скрипта
+start_date=`date '+%Y-%m-%d %H:%M:%S'`
+# Подсчет успешных полных копий
+count_full_backup_detected=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e FULL | grep -e OK | wc -l` 
+
+############################################################################
+#Рассчеты свободного места #################################################
+############################################################################
+
+free_lv_backups=`df -k | grep "${NAME_LV_BACKUPS}$" | awk '{print $4}'`;
+
+if [ -z $free_lv_backups ]; then
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >ERROR:  Точка монтирования резервных копий должена быть задана коректно: NAME_LV_BACKUPS" > ${LOG_NAME_DB_PATH}
+    exit 0;
+fi
+
+name_old_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep -e OK | grep -e FULL | head -1 | awk '{print $3}'`
+
+if [ -n "${name_old_backup}" ]; then
+    size_old_backup=`cat ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/${name_old_backup}/backup.control | grep ^data-bytes | awk '{print $3}'`
+    size_db_up=`printf "%.0f\n" $size_old_backup`
+    size_back_new=`echo "(${size_old_backup}*0.20+${size_old_backup})/1024" | bc` # Требуемое место для выполнения бекапа +20%
+else
+    size_back_new="1"
+fi
+
+############################################################################
+#Функции скрипта############################################################
+############################################################################
+
+# Запись на ERROR в pg_probackup show
+function add_backup_error_file {
+mkdir ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB
+echo "#Configuration
+backup-mode = ${back_type}
+
+#Result backup info
+timelineid = 0
+start-lsn = 0/0
+stop-lsn = 0/0
+start-time = '${start_date}'
+end-time = '${start_date}'
+recovery-xid = 0
+uncompressed-bytes = 0
+pgdata-bytes = 0
+status = ERROR" > ${PG_PROBACKUP_DIR_PATH}/backups/${NAME_INSTANCE}/ERRORB/backup.control
+}
+
+############################################################################
+#Проверка типа бекапа, согласно рассписанию#################################
+############################################################################
+
+check_type_backup_delta=`echo ${DELTA_DAY} | grep -E ${this_day} | wc -l`
+check_type_backup_page=`echo ${PAGE_DAY} | grep -E ${this_day} | wc -l`
+
+if [ ${check_type_backup_delta} -ge 1 ] && [ "${check_type_backup_page}" -ge 1 ]; then
+     back_type=FULL
+elif [ "${check_type_backup_delta}" -ge 1 ] && [ "${check_type_backup_page}" -eq 0 ]; then
+     back_type=DELTA
+elif [ "${check_type_backup_page}" -ge 1 ] && [ "${check_type_backup_delta}" -eq 0 ]; then
+     back_type=PAGE
+else
+     back_type=FULL
+fi
+
+############################################################################
+#Выполнение резервной копии#################################################
+############################################################################
+
+#Проверка свободного места
+if [ $free_lv_backups -gt $size_back_new ];  then 
+
+  # Блок выполнения резервного копирования в режиме DELTA, PAGE
+  if [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge ${COUNT_FULL_BACKUP_MIN} ] && [ ${MERGE_TYPE} == off ]; then #Проверка типа резервной копии 
+    ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+    if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+        status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
+        ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+#        ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+    fi
+
+  # Блок выполнения резервного копирования в режиме DELTA/PAGE + MERGE
+  elif [ ${back_type} == PAGE ] || [ ${back_type} == DELTA ] && [ ${count_full_backup_detected} -ge 1 ] && [ ${MERGE_TYPE} == on ]; then
+    
+    if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+    ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+       name_last_back=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} --format=json | grep id | head -1 | sed 's/"id": "//' | sed 's/",//' | xargs`
+       if  ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} merge -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -i ${name_last_back}; then
+           status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head 0 | wc -l`
+#           ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+           ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+       fi  
+    fi
+
+  # Блок выполнения резервного копирования в режиме FULL
+  else
+      back_type=FULL 
+      ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+      if ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} backup -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} -b ${back_type} --stream --compress-alg=${COMPRESS_ALG} --compress-level=${COMPRESS_LEVEL} -j ${JOBS_COUNT} -U ${USER_PRO_BACKUP} -d ${DB_PRO_BACKUP}; then
+         status_backup=`${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} show -B ${PG_PROBACKUP_DIR_PATH} --instance ${NAME_INSTANCE} | grep OK |  head -1 | wc -l`
+#         ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --status=ERROR
+         ${PGPRO_BACKUP_PATH}/${PGPRO_BACKUP_NAME_UTIL} delete -B ${PG_PROBACKUP_DIR_PATH}  --instance ${NAME_INSTANCE} --delete-expired --delete-wal
+      fi
+  fi
+
+else
+    add_backup_error_file
+    echo "< `date '+%Y-%m-%d %H:%M:%S.%3N %Z'` >ERROR:  no space left on device for creating backup" > ${LOG_NAME_DB_PATH}
+fi

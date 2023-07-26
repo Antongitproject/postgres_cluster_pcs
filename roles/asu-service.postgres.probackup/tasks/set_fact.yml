@@ -1,0 +1,103 @@
+---
+
+- name: Seach vendor Postgres (ignoring is not a mistake)
+  command: sudo -u postgres psql -U postgres -p {{ POSTGRES_PORT }} -d postgres -At -c "SELECT pgpro_version();"
+  register: POSTGRES_VENDOR_SEARCH
+  ignore_errors: true
+
+- name: Search fact PostgreSQL
+  shell: yum list installed | grep postgresql | wc -l
+  register: pg_version_sql
+
+- name: Seach fact PostgresPro 
+  shell: yum list installed | grep postgrespro | wc -l
+  register: pg_version_pro
+
+- name: Set fact sql
+  set_fact:
+    pg_version_sql_out: "{{ pg_version_sql.stdout }}"
+
+- name: Set fact pro
+  set_fact:
+    pg_version_pro_out: "{{ pg_version_pro.stdout }}"
+
+- name: Vendor fact PostgreSQL
+  set_fact:  
+    POSTGRES_VENDOR: "postgresql"
+  when: pg_version_sql_out|int >= 2
+
+- name: Vendor fact PostgresPro  
+  set_fact:  
+    POSTGRES_VENDOR: "postgrespro"
+  when: pg_version_pro_out|int >= 2 
+
+- name: Show version
+  command: sudo -u postgres psql -U postgres -p {{ POSTGRES_PORT }} -d postgres -At -c "SHOW server_version"
+  register: POSTGRES_VERSION_FULL
+
+- name: Set version
+  set_fact:
+    POSTGRES_VERSION: "{{ POSTGRES_VERSION_FULL.stdout.split('.')[0] }}"
+
+- name: Facts Postgres Pro 
+  set_fact:
+    POSTGRES_PACK_NAME: "postgrespro-ent-"
+    POSTGRES_PATH_DIR: "/opt/pgpro/ent-{{POSTGRES_VERSION}}"
+    PGPRO_BACKUP_NAME_UTIL: "pg_probackup"       
+    PGPRO_BACKUP_PATH: "/opt/pgpro/ent-{{ POSTGRES_VERSION }}/bin"
+  when: ( POSTGRES_VENDOR == "postgrespro")
+
+- name: Facts Postgres SQL
+  set_fact:
+    POSTGRES_PACK_NAME: "postgresql"
+    POSTGRES_PATH_DIR: "/usr/pgsql-{{POSTGRES_VERSION}}"
+    PGPRO_BACKUP_NAME_UTIL: "pg_probackup-{{ POSTGRES_VERSION }}"
+    PGPRO_BACKUP_PATH: "/usr/bin"
+  when: ( POSTGRES_VENDOR == "postgresql")
+
+- name: Facts Postgres
+  set_fact:
+    POSTGRES_BIN: "{{ POSTGRES_PATH_DIR}}/bin"
+    POSTGRES_EXTANTION: "{{ POSTGRES_PATH_DIR }}/share/extension/"
+
+- name: Set PGDATA_PATH
+  set_fact:
+    PGDATA_PATH: "{{ DBMS_ROOT_DIRECTORY }}/{{ DATA_DIR_NAME }}"
+  
+- name: PostgreSQL server status
+  shell: sudo -u postgres psql -U postgres -p {{ POSTGRES_PORT }} -d postgres -At -c "SELECT pg_is_in_recovery()"
+  register: result_recovery  
+
+- name: Set fact pass_pro_backup_db
+  set_fact:
+    pass_pro_backup_db: "{{ lookup('password', '/dev/null chars=ascii_letters,digits,hexdigits length=30') }}"    
+  delegate_to: localhost
+  run_once: true
+  delegate_facts: true
+
+- name: Set fact PGPRO_BACKUP_NAME_UTIL and PGPRO_BACKUP_PATH
+  set_fact:
+     PGPRO_BACKUP_NAME_UTIL: "pg_probackup"       
+     PGPRO_BACKUP_PATH: "/opt/pgpro/ent-{{ POSTGRES_VERSION }}/bin"
+  when: ( POSTGRES_VENDOR == "postgrespro" )
+
+- name: Set fact init_dir
+  stat:
+    path: "{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/"
+  register: init_dir
+
+- name: Set fact instance_dir 
+  stat:
+    path: "{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/backups/{{ ansible_hostname }}"
+  register: instance_dir
+
+- name: Set fact pgpass 
+  stat:
+    path: "{{ postgres_home_dir }}/.pgpass"
+  register: pgpass
+
+- name: Cat file pgpass
+  shell: "cat {{ postgres_home_dir }}/.pgpass | grep {{ USER_BACKUP }} | wc -l" 
+  register: pgpass_user_exists
+  when: pgpass.stat.exists
+

@@ -1,0 +1,143 @@
+---
+- name: Install pg_probackup
+  yum:
+    name:  
+      - pg-probackup-ent-{{POSTGRES_VERSION}}  
+      - pg-probackup-ent-{{POSTGRES_VERSION}}-debuginfo
+    state: present 
+  when: ( POSTGRES_VENDOR == "postgrespro" )
+
+- name: Set fact PGPRO_BACKUP_NAME_UTIL and PGPRO_BACKUP_PATH
+  set_fact:
+     PGPRO_BACKUP_NAME_UTIL: "pg_probackup-{{ POSTGRES_VERSION }}"
+     PGPRO_BACKUP_PATH: "/usr/bin"
+  when: ( POSTGRES_VENDOR == "postgresql" )
+
+- name: Install pg_probackup
+  yum:
+    name:  
+      - pg_probackup-{{POSTGRES_VERSION}}  
+      - pg_probackup-{{POSTGRES_VERSION}}-debuginfo
+    state: present 
+  when: ( POSTGRES_VENDOR == "postgresql" )
+
+- name: Change owner postgres directory backups
+  file: 
+    path: "{{ DBMS_BACKUP_DIRECTORY }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    recurse: yes
+
+- name: Change .bash_profile
+  template:
+    src: "bash_profile.j2"
+    dest: "{{ postgres_home_dir }}/.bash_profile"
+    owner: postgres
+    group: postgres
+    mode: '0600'
+    backup: "true" 
+
+- name: Create file pgpass
+  copy: 
+    dest: "{{ postgres_home_dir }}/.pgpass"
+    content: ""
+  when: not pgpass.stat.exists
+
+- name: Delete line in pgpass
+  lineinfile:
+    path: "{{ postgres_home_dir }}/.pgpass"
+    state: absent
+    regexp: ".*{{ USER_BACKUP }}.*"
+  when: pgpass_user_exists.stdout|int >= 1
+
+- name: Touch user in file .pgpass
+  lineinfile:
+    path: "{{ postgres_home_dir }}/.pgpass"
+    line: "localhost:*:*:{{ USER_BACKUP }}:{{ hostvars['localhost']['pass_pro_backup_db'] }}"
+    backup: "true"
+  #  no_log: true
+ 
+- name: Touch user in file pg_hba.conf
+  lineinfile:
+    path: "{{ PGDATA_PATH }}/pg_hba.conf"
+    line: "{{ item }}"
+    state: present
+    backup: "true"
+  loop:
+    - "local   {{ USER_BACKUP }} {{ USER_BACKUP }}                                             md5"
+    - "local   replication     {{ USER_BACKUP }}                                        md5"
+
+- name: Creates directory
+  file:
+    path: "{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup"
+    owner: postgres
+    group: postgres
+    state: directory
+
+- name: Active archive pg_wal postgres.auto.conf (pg_probackup)
+  shell: "{{ item }}"
+  loop:
+    - "sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c \"ALTER SYSTEM SET archive_mode = 'always'\""      
+    - "sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c \"ALTER SYSTEM SET archive_command = '{{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} archive-push -B \"{{ DBMS_BACKUP_DIRECTORY }}/pg_probackup\" --instance `hostname` --wal-file-name=%f --compress-algorithm=zlib --compress-level=9'\""              
+  when: ARCHIVE_PG_WAL|bool == true
+
+- name: Play command psql (pg_probackup)
+  shell: "{{ item }}"
+  loop:
+    - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE ROLE {{ USER_BACKUP }} WITH LOGIN"; /usr/bin/true             
+    - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER USER {{ USER_BACKUP }} REPLICATION"              
+    - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "ALTER USER {{ USER_BACKUP }} PASSWORD '{{ hostvars['localhost']['pass_pro_backup_db'] }}'" 
+    - sudo -iu postgres psql -U postgres -p {{ POSTGRES_PORT }} -c "CREATE DATABASE {{ USER_BACKUP }} OWNER {{ USER_BACKUP }}"; /usr/bin/true
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT USAGE ON SCHEMA pg_catalog TO {{ USER_BACKUP }}"                                     
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.current_setting(text) TO {{ USER_BACKUP }}"                        
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.set_config(text, text, boolean) TO {{ USER_BACKUP }}"              
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_is_in_recovery() TO {{ USER_BACKUP }}"                          
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_start_backup(text, boolean, boolean) TO {{ USER_BACKUP }}"      
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_stop_backup(boolean, boolean) TO {{ USER_BACKUP }}"             
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_create_restore_point(text) TO {{ USER_BACKUP }}"                
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_switch_wal() TO {{ USER_BACKUP }}"                              
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_last_wal_replay_lsn() TO {{ USER_BACKUP }}"                     
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.txid_current() TO {{ USER_BACKUP }}"                               
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.txid_current_snapshot() TO {{ USER_BACKUP }}"                      
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.txid_snapshot_xmax(txid_snapshot) TO {{ USER_BACKUP }}"            
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_checkpoint() TO {{ USER_BACKUP }}"       
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT CONNECT ON DATABASE {{ USER_BACKUP }} TO {{ USER_TECHNICAL }}"; /usr/bin/true
+    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "SELECT pg_reload_conf()"  
+  when: result_recovery.stdout == "f"
+
+- name: Init pg_probackup
+  shell: "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} init -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/"   
+  when: not init_dir.stat.exists
+
+
+- name: Init pg_probackup
+  shell: "{{ item }}"   
+  loop: 
+    - "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} add-instance -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance=`hostname` --pgdata={{ PGDATA_PATH }}"
+    - "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} set-config -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/ --instance `hostname` --retention-redundancy={{ RETENTION_REDUNDANCY }} --retention-window={{ RETENTION_WINDOW }} --wal-depth={{ WAL_DEPTH }} "
+  when: not instance_dir.stat.exists
+
+- name: Copy script backupPro.sh
+  template:
+    src: "backupPro.sh.j2"
+    dest: "{{ postgres_home_dir }}/backupPro.sh"
+    owner: postgres
+    group: postgres
+    mode: 0700
+    backup: "true"
+  
+- name: Install Batchjobs on crontab
+  cron:
+    name: "Job start Pro_backup"
+    minute: "{{ CRON_BACK_HOUR }}"
+    hour: "{{ CRON_BACK_MIN }}"
+    job: "{{ postgres_home_dir }}/backupPro.sh COMPRESS_LEVEL=9 JOBS_COUNT=2"
+    disabled: "no"
+    user: "postgres"
+  tags:
+   - cronjobs
+ 
+- name: Start pg_probackup mode "FULL" 
+  shell: "sudo -u postgres {{ postgres_home_dir }}/backupPro.sh"   
+   
