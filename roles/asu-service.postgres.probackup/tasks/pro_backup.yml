@@ -7,12 +7,6 @@
     state: present 
   when: ( POSTGRES_VENDOR == "postgrespro" )
 
-- name: Set fact PGPRO_BACKUP_NAME_UTIL and PGPRO_BACKUP_PATH
-  set_fact:
-     PGPRO_BACKUP_NAME_UTIL: "pg_probackup-{{ POSTGRES_VERSION }}"
-     PGPRO_BACKUP_PATH: "/usr/bin"
-  when: ( POSTGRES_VENDOR == "postgresql" )
-
 - name: Install pg_probackup
   yum:
     name:  
