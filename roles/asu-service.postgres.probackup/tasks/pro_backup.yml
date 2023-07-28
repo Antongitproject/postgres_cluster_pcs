@@ -97,8 +97,11 @@
     - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.txid_snapshot_xmax(txid_snapshot) TO {{ USER_BACKUP }}"            
     - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_checkpoint() TO {{ USER_BACKUP }}"       
     - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "GRANT CONNECT ON DATABASE {{ USER_BACKUP }} TO {{ USER_TECHNICAL }}"; /usr/bin/true
-    - sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "SELECT pg_reload_conf()"  
   when: result_recovery.stdout == "f"
+
+- name: Play command reload_conf
+  shell: sudo -iu postgres psql -U postgres -d {{ USER_BACKUP }} -p {{ POSTGRES_PORT }} -c "SELECT pg_reload_conf()"
+
 
 - name: Init pg_probackup
   shell: "sudo -iu postgres {{ PGPRO_BACKUP_PATH }}/{{ PGPRO_BACKUP_NAME_UTIL }} init -B {{ DBMS_BACKUP_DIRECTORY }}/pg_probackup/"   
