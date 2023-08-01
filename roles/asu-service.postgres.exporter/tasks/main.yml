@@ -1,0 +1,4 @@
+---
+
+  - name: Include set_facts
+    include: postgres_exporter.yml

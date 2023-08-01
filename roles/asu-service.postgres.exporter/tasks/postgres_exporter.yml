@@ -1,0 +1,31 @@
+---
+
+- name: Install PG_audit
+  yum: 
+    name: "postgres_exporter"
+    state: present
+
+- name: Change postgres_exporter
+  template:
+    src: "postgres_exporter.j2"
+    dest: "/etc/default/postgres_exporter"
+    owner: postgres
+    group: postgres
+    mode: '0600'
+    backup: yes
+
+- name: Change postgres_exporter_queries
+  template:
+    src: "postgres_exporter.j2"
+    dest: "/etc/default/postgres_exporter"
+    owner: postgres
+    group: postgres
+    mode: '0600'
+    backup: yes
+  when: PG_EXP_DEFAULT_QUERIES|bool == true
+
+- name: Start postgre_exporter
+  systemd:
+    name: postgre_exporter
+    state: started
+    enabled: yes

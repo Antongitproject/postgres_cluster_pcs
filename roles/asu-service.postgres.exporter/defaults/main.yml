@@ -1,0 +1,3 @@
+USER_TECHNICAL: "user_technical"
+DB_UNIX_SOCET: "/var/run/postgresql"
+PG_EXP_DEFAULT_QUERIES: true
