@@ -1,31 +1,38 @@
 ---
 
-- name: Install PG_audit
-  yum: 
-    name: "postgres_exporter"
-    state: present
+- name: Проверить установку Postgres
+  shell: "yum list installed | grep postgres | wc -l"
+  register: postgres_installed
 
-- name: Change postgres_exporter
-  template:
-    src: "postgres_exporter.j2"
-    dest: "/etc/default/postgres_exporter"
-    owner: postgres
-    group: postgres
-    mode: '0600'
-    backup: yes
+- block:
+  
+  - name: Install postgres_exporter
+    yum: 
+      name: "postgres_exporter"
+      state: present
+  
+  - name: Change postgres_exporter
+    template:
+      src: "postgres_exporter.j2"
+      dest: "/etc/default/postgres_exporter"
+      backup: yes
+  
+  - name: Change postgres_exporter_queries
+    template:
+      src: "postgres_exporter.j2"
+      dest: "/etc/default/postgres_exporter"
+      backup: yes
+    when: PG_EXP_DEFAULT_QUERIES|bool == true
+  
+  - name: Stop postgre_exporter
+    systemd:
+      name: postgres_exporter
+      state: stopped
+  
+  - name: Start postgre_exporter
+    systemd:
+      name: postgres_exporter
+      state: started
+      enabled: yes
 
-- name: Change postgres_exporter_queries
-  template:
-    src: "postgres_exporter.j2"
-    dest: "/etc/default/postgres_exporter"
-    owner: postgres
-    group: postgres
-    mode: '0600'
-    backup: yes
-  when: PG_EXP_DEFAULT_QUERIES|bool == true
-
-- name: Start postgre_exporter
-  systemd:
-    name: postgre_exporter
-    state: started
-    enabled: yes
+  when: postgres_installed.stdout|int >= 2
