@@ -1,0 +1,8 @@
+---
+- hosts: all
+  gather_facts: true
+  tasks:
+    - name: Include role for create base users account
+      include_role:
+        name: asu-service.postgres.exporter
+...
